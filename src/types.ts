@@ -6,7 +6,10 @@ export interface ChartSeries {
   name: string;
   data: number[];
   role?: ChartSeriesRole;
+  useCustomStyle?: boolean;
   color?: string;
+  barWidth?: number;
+  lineWidth?: number;
   areaColor?: string;
   areaGradientStart?: string;
   areaGradientEnd?: string;
@@ -60,7 +63,13 @@ export type ChartSubType =
   | 'step'
   | 'log'
   | 'multi-x'
-  | 'function-plot';
+  | 'function-plot'
+  | 'donut'
+  | 'rounded-donut'
+  | 'gap-donut'
+  | 'nightingale'
+  | 'nightingale-basic'
+  | 'nested-donut';
 
 export interface ChartOptions {
   // Canvas
@@ -94,6 +103,9 @@ export interface ChartOptions {
   barWidth: number;
   lineWidth: number;
   scatterSize: number;
+  pieInnerRadius: number;
+  pieOuterRadius: number;
+  piePadAngle: number;
   showDataLabels: boolean;
   labelPosition:
     | 'none'

@@ -58,6 +58,36 @@ const TEMPLATES: Template[] = [
     getOptions: { subType: 'stacked-horizontal', showLegend: true, showDataLabels: true, labelPosition: 'inside' }
   },
 
+  // PIE CHARTS
+  {
+    id: 'basic', name: '基础饼图', desc: '标准占比结构展示', type: 'pie',
+    getOptions: { subType: 'basic', showLegend: true, showDataLabels: true, labelPosition: 'outside', pieInnerRadius: 0, pieOuterRadius: 70 }
+  },
+  {
+    id: 'donut', name: '环形图', desc: '以内外半径呈现占比结构', type: 'pie',
+    getOptions: { subType: 'donut', showLegend: true, showDataLabels: false, labelPosition: 'inside', pieInnerRadius: 40, pieOuterRadius: 70 }
+  },
+  {
+    id: 'rounded-donut', name: '圆角环形图', desc: '带圆角和分隔描边的环形图', type: 'pie',
+    getOptions: { subType: 'rounded-donut', showLegend: true, showDataLabels: false, labelPosition: 'inside', pieInnerRadius: 40, pieOuterRadius: 70 }
+  },
+  {
+    id: 'gap-donut', name: '扇区间隙环形图', desc: '环形扇区之间保留可调间隙', type: 'pie',
+    getOptions: { subType: 'gap-donut', showLegend: true, showDataLabels: false, labelPosition: 'inside', pieInnerRadius: 40, pieOuterRadius: 70, piePadAngle: 5 }
+  },
+  {
+    id: 'nightingale', name: '南丁格尔玫瑰图', desc: '左右对比半径与面积两种玫瑰模式', type: 'pie',
+    getOptions: { subType: 'nightingale', showLegend: true, showDataLabels: false, labelPosition: 'outside', pieInnerRadius: 12, pieOuterRadius: 72 }
+  },
+  {
+    id: 'nightingale-basic', name: '基础南丁格尔玫瑰图', desc: '单组面积模式玫瑰图', type: 'pie',
+    getOptions: { subType: 'nightingale-basic', showLegend: true, showDataLabels: true, labelPosition: 'outside', pieInnerRadius: 20, pieOuterRadius: 78 }
+  },
+  {
+    id: 'nested-donut', name: '嵌套环形图', desc: '内外两层环形结构展示层级占比', type: 'pie',
+    getOptions: { subType: 'nested-donut', showLegend: true, showDataLabels: true, labelPosition: 'outside', pieInnerRadius: 45, pieOuterRadius: 64 }
+  },
+
   // LINE CHARTS
   { 
     id: 'basic', name: '基础折线图', desc: '展示数据的变化趋势', type: 'line',
@@ -128,6 +158,9 @@ const THUMBNAIL_BASE_OPTIONS: ChartOptions = {
   barWidth: 28,
   lineWidth: 2,
   scatterSize: 14,
+  pieInnerRadius: 40,
+  pieOuterRadius: 70,
+  piePadAngle: 5,
   showDataLabels: false,
   labelPosition: 'top',
   smoothLine: false,
@@ -266,7 +299,7 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                     showMarkLine: false,
                     showMarkPoint: false,
                     lineSymbol: 'none',
-                    labelPosition: 'top',
+                    labelPosition: chartType === 'pie' ? 'outside' : 'top',
                     title: '',
                     subtitle: '',
                     subType: actualSubType,

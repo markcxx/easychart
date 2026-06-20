@@ -25,7 +25,7 @@ type DrawerType = 'ai' | 'data' | 'style' | null;
 const DEFAULT_SAMPLE = createSampleChart('bar');
 
 const BASE_OPTIONS: ChartOptions = {
-  animationDuration: 1000,
+  animationDuration: 1600,
   showGrid: true,
   showTitle: true,
   title: DEFAULT_SAMPLE.title,
@@ -43,9 +43,12 @@ const BASE_OPTIONS: ChartOptions = {
   xLabelRotate: 0,
   showYSplitLine: true,
   ySplitLineType: 'dashed',
-  barWidth: 30,
+  barWidth: 20,
   lineWidth: 2,
   scatterSize: 14,
+  pieInnerRadius: 40,
+  pieOuterRadius: 70,
+  piePadAngle: 5,
   showDataLabels: false,
   labelPosition: 'top',
   smoothLine: false,
@@ -80,7 +83,7 @@ function createDefaultOptions(type: ChartType, sample = createSampleChart(type))
     showXAxis: type !== 'pie',
     showAxisLabels: type !== 'pie',
     labelPosition: type === 'pie' ? 'outside' : 'top',
-    barWidth: type === 'bar' ? 30 : BASE_OPTIONS.barWidth,
+    barWidth: type === 'bar' ? 20 : BASE_OPTIONS.barWidth,
     lineWidth: 2,
     scatterSize: 14,
     smoothLine: false,
@@ -361,6 +364,8 @@ export function EasyChartApp() {
         onChange={setChartData}
         chartType={chartType}
         subType={chartOptions.subType}
+        defaultBarWidth={chartOptions.barWidth}
+        defaultLineWidth={chartOptions.lineWidth}
         title={chartOptions.title}
         subtitle={chartOptions.subtitle}
         onTitleChange={(title) => setChartOptions(prev => ({ ...prev, title }))}

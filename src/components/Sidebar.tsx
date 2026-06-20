@@ -7,6 +7,7 @@ import {
   Map, Grid, Share2, Waves, CandlestickChart, Gauge,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -16,7 +17,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isCollapsed, onToggle, activeChart, onChartSelect }: SidebarProps) {
-  const navItems1: { icon: any; label: string; type: ChartType }[] = [
+  const navItems1: { icon: LucideIcon; label: string; type: ChartType }[] = [
     { icon: BarChart3, label: '柱状图', type: 'bar' },
     { icon: LineChart, label: '折线图', type: 'line' },
     { icon: PieChart, label: '饼图', type: 'pie' },

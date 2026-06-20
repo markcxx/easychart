@@ -170,7 +170,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
             <div className="grid grid-cols-2 gap-md">
               <div>
                 <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">对齐方式</label>
-                <Select value={options.titleAlign} onValueChange={(v: any) => updateOption('titleAlign', v)}>
+                <Select value={options.titleAlign} onValueChange={(value) => updateOption('titleAlign', value as ChartOptions['titleAlign'])}>
                   <SelectTrigger>
                     <SelectValue placeholder="对齐方式" />
                   </SelectTrigger>
@@ -206,7 +206,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
             </div>
             <div>
               <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">图例类型</label>
-              <Select value={options.legendType} onValueChange={(v: any) => updateOption('legendType', v)}>
+              <Select value={options.legendType} onValueChange={(value) => updateOption('legendType', value as ChartOptions['legendType'])}>
                 <SelectTrigger>
                   <SelectValue placeholder="图例类型" />
                 </SelectTrigger>
@@ -218,7 +218,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
             </div>
             <div>
               <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">图例布局</label>
-              <Select value={options.legendLayout} onValueChange={(v: any) => updateOption('legendLayout', v)}>
+              <Select value={options.legendLayout} onValueChange={(value) => updateOption('legendLayout', value as ChartOptions['legendLayout'])}>
                 <SelectTrigger>
                   <SelectValue placeholder="图例布局" />
                 </SelectTrigger>
@@ -289,7 +289,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
                   </div>
                   <div>
                     <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">分割线样式</label>
-                    <Select value={options.ySplitLineType} onValueChange={(v: any) => updateOption('ySplitLineType', v)}>
+                    <Select value={options.ySplitLineType} onValueChange={(value) => updateOption('ySplitLineType', value as ChartOptions['ySplitLineType'])}>
                       <SelectTrigger>
                         <SelectValue placeholder="线条样式" />
                       </SelectTrigger>
@@ -412,7 +412,40 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
             )}
             {chartType === 'pie' && (
               <ConfigSection title="扇区外观">
-                <span className="text-body-md text-on-surface-variant">当前模板使用默认扇区尺寸。</span>
+                <div>
+                  <div className="flex justify-between mb-sm">
+                    <label className="text-label-md font-label-md text-on-surface font-medium">外径</label>
+                    <span className="text-body-md text-on-surface-variant font-code-sm">{options.pieOuterRadius}%</span>
+                  </div>
+                  <Slider
+                    min={20} max={100} step={1} value={[options.pieOuterRadius]}
+                    onValueChange={(v) => updateOption('pieOuterRadius', Math.max(v[0], options.pieInnerRadius + 5))}
+                  />
+                </div>
+                {options.subType !== 'basic' && (
+                  <div>
+                    <div className="flex justify-between mb-sm">
+                      <label className="text-label-md font-label-md text-on-surface font-medium">内径</label>
+                      <span className="text-body-md text-on-surface-variant font-code-sm">{options.pieInnerRadius}%</span>
+                    </div>
+                    <Slider
+                      min={0} max={90} step={1} value={[options.pieInnerRadius]}
+                      onValueChange={(v) => updateOption('pieInnerRadius', Math.min(v[0], options.pieOuterRadius - 5))}
+                    />
+                  </div>
+                )}
+                {options.subType === 'gap-donut' && (
+                  <div>
+                    <div className="flex justify-between mb-sm">
+                      <label className="text-label-md font-label-md text-on-surface font-medium">扇区间隙</label>
+                      <span className="text-body-md text-on-surface-variant font-code-sm">{options.piePadAngle}°</span>
+                    </div>
+                    <Slider
+                      min={0} max={20} step={1} value={[options.piePadAngle]}
+                      onValueChange={(v) => updateOption('piePadAngle', v[0])}
+                    />
+                  </div>
+                )}
               </ConfigSection>
             )}
           </div>
@@ -427,7 +460,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
               </div>
               <div>
                 <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">标签位置</label>
-                <Select value={options.labelPosition} onValueChange={(v: any) => updateOption('labelPosition', v)}>
+                <Select value={options.labelPosition} onValueChange={(value) => updateOption('labelPosition', value as ChartOptions['labelPosition'])}>
                   <SelectTrigger>
                     <SelectValue placeholder="位置" />
                   </SelectTrigger>
@@ -453,7 +486,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
                   </div>
                   <div>
                     <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">线型</label>
-                    <Select value={options.markLineType} onValueChange={(v: any) => updateOption('markLineType', v)}>
+                    <Select value={options.markLineType} onValueChange={(value) => updateOption('markLineType', value as ChartOptions['markLineType'])}>
                       <SelectTrigger>
                         <SelectValue placeholder="线型" />
                       </SelectTrigger>
