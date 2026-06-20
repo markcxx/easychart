@@ -1,4 +1,6 @@
 export type ChartSeriesRole = 'normal' | 'stack' | 'positive' | 'negative';
+export type ChartSymbolType = 'emptyCircle' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none';
+export type ChartMarkerType = 'max' | 'min' | 'average' | 'custom';
 
 export interface ChartSeries {
   name: string;
@@ -6,9 +8,21 @@ export interface ChartSeries {
   role?: ChartSeriesRole;
 }
 
+export interface ChartMarker {
+  id: string;
+  name: string;
+  type: ChartMarkerType;
+  seriesIndex?: number;
+  categoryIndex?: number;
+  value?: number;
+}
+
 export interface ChartData {
   categories: string[];
+  secondaryCategories?: string[];
   series: ChartSeries[];
+  markLines?: ChartMarker[];
+  markPoints?: ChartMarker[];
 }
 
 export type ChartType = 'bar' | 'line' | 'pie' | 'scatter';
@@ -30,7 +44,9 @@ export type ChartSubType =
   | 'gradient-stacked-area'
   | 'bump'
   | 'step'
-  | 'log';
+  | 'log'
+  | 'multi-x'
+  | 'function-plot';
 
 export interface ChartOptions {
   // Canvas
@@ -79,6 +95,17 @@ export interface ChartOptions {
   smoothLine: boolean;
   fillArea: boolean;
   stepLine: boolean;
+  lineSymbol: ChartSymbolType;
+  lineSymbolSize: number;
+
+  // Markers
+  showMarkLine: boolean;
+  markLineType: 'solid' | 'dashed' | 'dotted';
+  markLineColor: string;
+  showMarkPoint: boolean;
+  markPointSymbol: ChartSymbolType;
+  markPointSymbolSize: number;
+  markPointColor: string;
 
   // Global modifiers
   subType?: ChartSubType;

@@ -4,12 +4,16 @@ import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 import {
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
+  MarkPointComponent,
   PolarComponent,
   TitleComponent,
   TooltipComponent,
 } from 'echarts/components';
+import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import { ChartData, ChartType, ChartOptions } from '@/types';
 import { DARK_CHART_THEMES, registerEchartsThemes } from '@/lib/echarts-themes';
@@ -19,11 +23,15 @@ echarts.use([
   LineChart,
   PieChart,
   ScatterChart,
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
+  MarkPointComponent,
   PolarComponent,
   TitleComponent,
   TooltipComponent,
+  AxisBreak,
   CanvasRenderer,
 ]);
 
@@ -48,6 +56,8 @@ const officialBarSubTypes = new Set([
   'stacked',
   'stacked-horizontal',
 ]);
+
+const specialLineSubTypes = new Set(['multi-x', 'function-plot']);
 
 function getLabelOption(options: ChartOptions, fallbackPosition: string = 'top') {
   const position = options.labelPosition === 'none' ? fallbackPosition : options.labelPosition;
@@ -92,6 +102,111 @@ function getTooltipOption(options: ChartOptions, isPie = false) {
     borderRadius: 8,
     shadowBlur: 10,
     shadowColor: 'rgba(0, 0, 0, 0.1)',
+  };
+}
+
+function getMarkerName(type: string, fallback: string) {
+  if (fallback) return fallback;
+  if (type === 'max') return '最大值';
+  if (type === 'min') return '最小值';
+  if (type === 'average') return '平均值';
+  return '自定义';
+}
+
+function getMarkerCoord(category: string, value: number, isHorizontal = false) {
+  return isHorizontal ? [value, category] : [category, value];
+}
+
+function getAverageMarkerPoint(name: string, categories: string[], values: number[], isHorizontal = false) {
+  const validValues = values.filter(value => Number.isFinite(value));
+  const average = validValues.length
+    ? validValues.reduce((sum, value) => sum + value, 0) / validValues.length
+    : 0;
+  const closestIndex = values.reduce((closest, value, index) => {
+    return Math.abs(value - average) < Math.abs(values[closest] - average) ? index : closest;
+  }, 0);
+  const value = Number(average.toFixed(2));
+
+  return {
+    name,
+    value,
+    coord: getMarkerCoord(categories[closestIndex] || categories[0] || '', value, isHorizontal),
+  };
+}
+
+function getSeriesMarkers(
+  data: ChartData,
+  options: ChartOptions,
+  seriesIndex: number,
+  categories: string[],
+  values: number[],
+  isHorizontal = false
+) {
+  const markLines = (data.markLines || []).filter(marker => marker.seriesIndex == null || marker.seriesIndex === seriesIndex);
+  const markPoints = (data.markPoints || []).filter(marker => marker.seriesIndex == null || marker.seriesIndex === seriesIndex);
+
+  const markLineData = markLines.map(marker => {
+    const name = getMarkerName(marker.type, marker.name);
+
+    if (marker.type === 'custom') {
+      return isHorizontal
+        ? { name, xAxis: marker.value ?? 0 }
+        : { name, yAxis: marker.value ?? 0 };
+    }
+
+    return { name, type: marker.type };
+  });
+
+  const markPointData = markPoints.map(marker => {
+    const name = getMarkerName(marker.type, marker.name);
+
+    if (marker.type === 'average') {
+      return getAverageMarkerPoint(name, categories, values, isHorizontal);
+    }
+
+    if (marker.type === 'custom') {
+      const categoryIndex = marker.categoryIndex ?? 0;
+      const value = marker.value ?? values[categoryIndex] ?? 0;
+
+      return {
+        name,
+        value,
+        coord: getMarkerCoord(categories[categoryIndex] || categories[0] || '', value, isHorizontal),
+      };
+    }
+
+    return { name, type: marker.type };
+  });
+
+  return {
+    markLine: options.showMarkLine && markLineData.length
+      ? {
+        symbol: ['none', 'none'],
+        lineStyle: {
+          type: options.markLineType,
+          color: options.markLineColor,
+          width: 2,
+        },
+        label: {
+          color: options.markLineColor,
+        },
+        data: markLineData,
+      }
+      : undefined,
+    markPoint: options.showMarkPoint && markPointData.length
+      ? {
+        symbol: options.markPointSymbol === 'none' ? 'pin' : options.markPointSymbol,
+        symbolSize: options.markPointSymbolSize,
+        itemStyle: {
+          color: options.markPointColor,
+        },
+        label: {
+          color: '#fff',
+          fontWeight: 'bold',
+        },
+        data: markPointData,
+      }
+      : undefined,
   };
 }
 
@@ -148,20 +263,25 @@ function getEditableSeries(data: ChartData, options: ChartOptions, stack?: strin
     ? data.series
     : [{ name: '系列1', data: categories.map(() => 0) }];
 
-  return sourceSeries.map(series => ({
-    name: series.name,
-    type: 'bar',
-    stack: getStackName(series.role, stack),
-    barWidth: `${options.barWidth}%`,
-    emphasis: { focus: 'series' },
-    label: getLabelOption(options, fallbackPosition),
-    data: categories.map((_, index) => {
+  return sourceSeries.map((series, seriesIndex) => {
+    const values = categories.map((_, index) => {
       const value = series.data[index] ?? 0;
       if (series.role === 'negative') return -Math.abs(value);
       if (series.role === 'positive') return Math.abs(value);
       return value;
-    }),
-  }));
+    });
+
+    return {
+      name: series.name,
+      type: 'bar',
+      stack: getStackName(series.role, stack),
+      barWidth: `${options.barWidth}%`,
+      emphasis: { focus: 'series' },
+      label: getLabelOption(options, fallbackPosition),
+      data: values,
+      ...getSeriesMarkers(data, options, seriesIndex, categories, values),
+    };
+  });
 }
 
 function getStackName(role: ChartData['series'][number]['role'], defaultStack?: string) {
@@ -202,6 +322,40 @@ function getBarGrid(options: ChartOptions, topWhenTitle = 90, topWithoutTitle = 
   };
 }
 
+function getAxisBreaksFromValues(values: number[]) {
+  const sortedValues = Array.from(new Set(values.filter(value => value > 0).sort((a, b) => a - b)));
+  if (sortedValues.length < 2) return [];
+
+  const gaps = sortedValues
+    .slice(0, -1)
+    .map((value, index) => {
+      const nextValue = sortedValues[index + 1];
+      return {
+        index,
+        startValue: value,
+        endValue: nextValue,
+        ratio: nextValue / Math.max(value, 1),
+        distance: nextValue - value,
+      };
+    })
+    .filter(gap => gap.ratio >= 4 && gap.distance > 0);
+
+  return gaps
+    .sort((a, b) => b.ratio - a.ratio)
+    .slice(0, 2)
+    .sort((a, b) => a.index - b.index)
+    .map(gap => {
+      const padding = gap.distance * 0.05;
+
+      return {
+        start: Math.ceil(gap.startValue + padding),
+        end: Math.floor(gap.endValue - padding),
+        gap: '1.5%',
+      };
+    })
+    .filter(gap => gap.end > gap.start);
+}
+
 function inferNegativeBarRole(seriesIndex: number, seriesCount: number) {
   if (seriesCount === 1) return 'normal';
   if (seriesCount === 2) return seriesIndex === 1 ? 'negative' : 'positive';
@@ -223,6 +377,8 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
     const sourceCategories = categories.slice(0, 6);
     const values = getSeriesValues(data, 0, sourceCategories);
     const total = values.reduce((sum, value) => sum + value, 0);
+    const waterfallCategories = ['总计', ...sourceCategories];
+    const waterfallValues = [total, ...values];
     let remaining = total;
     const placeholder = [0, ...values.map(value => {
       remaining -= value;
@@ -235,7 +391,7 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
       xAxis: {
         type: 'category',
         splitLine: { show: false },
-        data: ['总计', ...sourceCategories],
+        data: waterfallCategories,
       },
       yAxis: { type: 'value' },
       series: [
@@ -252,7 +408,8 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
           type: 'bar',
           stack: '总量',
           label: getLabelOption(options, 'inside'),
-          data: [total, ...values],
+          data: waterfallValues,
+          ...getSeriesMarkers(data, options, 0, waterfallCategories, waterfallValues),
         },
       ],
     };
@@ -293,6 +450,7 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
             ? { show: true, formatter: '{b}', position: options.labelPosition === 'none' ? 'inside' : options.labelPosition }
             : { show: false },
           data: values.map(value => value < 0 ? { value, label: labelRight } : value),
+          ...getSeriesMarkers(data, options, 0, sourceCategories, values, true),
         },
       ],
     };
@@ -304,6 +462,12 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
       const role = item.role || inferNegativeBarRole(seriesIndex, roleSeries.length);
       const isNegative = role === 'negative';
       const isStacked = role === 'positive' || role === 'negative' || role === 'stack';
+      const values = categories.map((_, index) => {
+        const value = item.data[index] ?? 0;
+        if (role === 'negative') return -Math.abs(value);
+        if (role === 'positive' || role === 'stack') return Math.abs(value);
+        return value;
+      });
 
       return {
         name: item.name,
@@ -312,12 +476,8 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
         barWidth: `${options.barWidth}%`,
         label: getLabelOption(options, isNegative ? 'left' : 'inside'),
         emphasis: { focus: 'series' },
-        data: categories.map((_, index) => {
-          const value = item.data[index] ?? 0;
-          if (role === 'negative') return -Math.abs(value);
-          if (role === 'positive' || role === 'stack') return Math.abs(value);
-          return value;
-        }),
+        data: values,
+        ...getSeriesMarkers(data, options, seriesIndex, categories, values, true),
       };
     });
 
@@ -335,13 +495,8 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
     const editableSeries = getEditableSeries(data, options);
     const allValues = editableSeries.flatMap(series => series.data as number[]);
     const positiveValues = allValues.filter(value => value > 0);
-    const maxValue = Math.max(...allValues, 1);
-    const minValue = positiveValues.length ? Math.min(...positiveValues) : 0;
-    const hasLargeGap = minValue > 0 && maxValue / minValue > 20;
-    const breaks = [
-      { start: Math.round(maxValue * 0.18), end: Math.round(maxValue * 0.45), gap: '1.5%' },
-      { start: Math.round(maxValue * 0.5), end: Math.round(maxValue * 0.82), gap: '1.5%' },
-    ];
+    const breaks = getAxisBreaksFromValues(positiveValues);
+    const hasLargeGap = breaks.length > 0;
 
     return {
       ...common,
@@ -399,6 +554,196 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
   };
 }
 
+function getFunctionPlotData() {
+  const result: number[][] = [];
+
+  for (let i = -200; i <= 200; i += 0.5) {
+    const x = i / 10;
+    const y = Math.sin(x) * Math.cos(x * 2 + 1) * Math.sin(x * 3 + 2) * 50;
+    result.push([Number(i.toFixed(1)), Number(y.toFixed(4))]);
+  }
+
+  return result;
+}
+
+function getSecondaryCategories(data: ChartData, categories: string[]) {
+  if (data.secondaryCategories?.length === categories.length) {
+    return data.secondaryCategories;
+  }
+
+  return categories.map((category, index) => `${category}-对比${index + 1}`);
+}
+
+function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean) {
+  const categories = getChartCategories(data);
+  const common = {
+    animationDuration: options.animationDuration,
+    backgroundColor: options.backgroundColor || 'transparent',
+    title: getTitleOption(options, isDarkTheme),
+  };
+
+  if (options.subType === 'function-plot') {
+    return {
+      ...common,
+      animation: false,
+      tooltip: options.showTooltip
+        ? {
+          trigger: 'axis',
+          axisPointer: { type: 'cross' },
+          backgroundColor: `rgba(255, 255, 255, ${options.tooltipAlpha})`,
+          borderColor: '#e3e2e0',
+          borderWidth: 1,
+          textStyle: { color: '#1a1c1a', fontFamily: 'Inter, sans-serif' },
+          padding: [10, 15],
+          borderRadius: 8,
+        }
+        : undefined,
+      grid: {
+        top: options.showTitle ? 80 : 40,
+        left: 50,
+        right: 40,
+        bottom: 50,
+      },
+      xAxis: {
+        name: 'x',
+        minorTick: { show: true },
+        minorSplitLine: { show: true },
+      },
+      yAxis: {
+        name: 'y',
+        min: -100,
+        max: 100,
+        minorTick: { show: true },
+        minorSplitLine: { show: true },
+      },
+      dataZoom: [
+        {
+          show: true,
+          type: 'inside',
+          filterMode: 'none',
+          xAxisIndex: [0],
+          startValue: -20,
+          endValue: 20,
+        },
+        {
+          show: true,
+          type: 'inside',
+          filterMode: 'none',
+          yAxisIndex: [0],
+          startValue: -20,
+          endValue: 20,
+        },
+      ],
+      series: [
+        {
+          name: '函数曲线',
+          type: 'line',
+          showSymbol: false,
+          clip: true,
+          lineStyle: { width: options.barWidth / 10 },
+          data: getFunctionPlotData(),
+        },
+      ],
+    };
+  }
+
+  const colors = ['#5470C6', '#EE6666'];
+  const secondaryCategories = getSecondaryCategories(data, categories);
+  const sourceSeries = data.series.length
+    ? data.series
+    : [{ name: '系列1', data: categories.map(() => 0) }];
+
+  return {
+    ...common,
+    color: colors,
+    tooltip: options.showTooltip
+      ? {
+        trigger: 'none',
+        axisPointer: { type: 'cross' },
+        backgroundColor: `rgba(255, 255, 255, ${options.tooltipAlpha})`,
+        borderColor: '#e3e2e0',
+        borderWidth: 1,
+        textStyle: { color: '#1a1c1a', fontFamily: 'Inter, sans-serif' },
+        padding: [10, 15],
+        borderRadius: 8,
+      }
+      : undefined,
+    legend: options.showLegend ? {} : undefined,
+    grid: {
+      top: options.showTitle ? 90 : 70,
+      bottom: 50,
+      left: '5%',
+      right: '5%',
+      containLabel: true,
+    },
+    xAxis: [
+      {
+        type: 'category',
+        position: 'bottom',
+        axisTick: { alignWithLabel: true, show: options.showXAxis },
+        axisLabel: { show: options.showXAxis, rotate: options.xLabelRotate },
+        axisLine: {
+          onZero: false,
+          show: options.showXAxis,
+          lineStyle: { color: colors[1] },
+        },
+        axisPointer: {
+          label: {
+            formatter: (params: any) => `主 X 轴 ${params.value}${params.seriesData.length ? `：${params.seriesData[0].data}` : ''}`,
+          },
+        },
+        data: categories,
+      },
+      {
+        type: 'category',
+        position: 'top',
+        axisTick: { alignWithLabel: true, show: options.showXAxis },
+        axisLabel: { show: options.showXAxis, rotate: options.xLabelRotate },
+        axisLine: {
+          onZero: false,
+          show: options.showXAxis,
+          lineStyle: { color: colors[0] },
+        },
+        axisPointer: {
+          label: {
+            formatter: (params: any) => `第二 X 轴 ${params.value}${params.seriesData.length ? `：${params.seriesData[0].data}` : ''}`,
+          },
+        },
+        data: secondaryCategories,
+      },
+    ],
+    yAxis: [
+      {
+        type: 'value',
+        splitLine: {
+          show: options.showYSplitLine,
+          lineStyle: { type: options.ySplitLineType },
+        },
+      },
+    ],
+    series: sourceSeries.map((series, seriesIndex) => {
+      const xAxisIndex = sourceSeries.length > 1 && seriesIndex % 2 === 0 ? 1 : 0;
+      const axisCategories = xAxisIndex === 1 ? secondaryCategories : categories;
+      const values = axisCategories.map((_, index) => series.data[index] ?? 0);
+
+      return {
+        name: series.name,
+        type: 'line',
+        xAxisIndex,
+        smooth: options.smoothLine,
+        symbol: options.lineSymbol,
+        showSymbol: options.lineSymbol !== 'none',
+        symbolSize: options.lineSymbolSize,
+        lineStyle: { width: options.barWidth / 10 },
+        emphasis: { focus: 'series' },
+        label: getLabelOption(options, 'top'),
+        data: values,
+        ...getSeriesMarkers(data, options, seriesIndex, axisCategories, values),
+      };
+    }),
+  };
+}
+
 export function Chart({ id, className, isSidebarCollapsed, theme = 'default', data, options, chartType }: ChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
@@ -442,6 +787,7 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
             const isBar = chartType === 'bar';
             const isLine = chartType === 'line';
             const isPolar = options.subType === 'polar-label' && isBar;
+            const values = data.categories.map((_, dataIndex) => s.data[dataIndex] ?? 0);
             
             let itemStyle: any = undefined;
             if (isBar) {
@@ -479,9 +825,11 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
               name: s.name,
               type: chartType,
               coordinateSystem: isPolar ? 'polar' : 'cartesian2d',
-              data: s.data,
+              data: values,
               barWidth: isBar ? `${options.barWidth}%` : undefined,
-              symbolSize: chartType === 'scatter' ? options.barWidth / 2 : undefined,
+              symbol: isLine ? options.lineSymbol : undefined,
+              showSymbol: isLine ? options.lineSymbol !== 'none' : undefined,
+              symbolSize: isLine ? options.lineSymbolSize : chartType === 'scatter' ? options.barWidth / 2 : undefined,
               lineStyle: isLine ? { width: options.barWidth / 10 } : undefined,
               itemStyle,
               stack: stackName,
@@ -491,14 +839,17 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
               label: {
                    show: options.showDataLabels,
                    position: isHorizontal && options.labelPosition === 'top' ? 'right' : options.labelPosition
-              }
+              },
+              ...(isBar || isLine ? getSeriesMarkers(data, options, idx, data.categories, values, isHorizontal) : {})
             };
         });
     }
 
-    const echartsOption = chartType === 'bar' && options.subType && officialBarSubTypes.has(options.subType)
-      ? buildOfficialBarOption(data, options, isDarkTheme)
-      : {
+    const echartsOption = chartType === 'line' && options.subType && specialLineSubTypes.has(options.subType)
+      ? buildSpecialLineOption(data, options, isDarkTheme)
+      : chartType === 'bar' && options.subType && officialBarSubTypes.has(options.subType)
+        ? buildOfficialBarOption(data, options, isDarkTheme)
+        : {
       animationDuration: options.animationDuration,
       backgroundColor: options.backgroundColor || (validTheme ? undefined : 'transparent'),
       color: validTheme ? undefined : ['#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#818cf8', '#a78bfa'],

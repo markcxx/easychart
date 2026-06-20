@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import { ChartData, ChartSeriesRole, ChartType } from '@/types';
+import { ChartData, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
 
 interface DataDrawerProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface DataDrawerProps {
   data: ChartData;
   onChange: (data: ChartData) => void;
   chartType: ChartType;
+  subType?: ChartSubType;
   title: string;
   subtitle: string;
   onTitleChange: (value: string) => void;
@@ -25,18 +26,33 @@ const SERIES_ROLE_OPTIONS: { value: ChartSeriesRole; label: string }[] = [
   { value: 'negative', label: '负向堆叠' },
 ];
 
+const MARKER_TYPE_OPTIONS: { value: ChartMarkerType; label: string }[] = [
+  { value: 'max', label: '最大值' },
+  { value: 'min', label: '最小值' },
+  { value: 'average', label: '平均值' },
+  { value: 'custom', label: '自定义值' },
+];
+
+function getSecondaryCategoryFallback(category: string, index: number) {
+  return `${category}-对比${index + 1}`;
+}
+
 export function DataDrawer({
   isOpen,
   onClose,
   data,
   onChange,
   chartType,
+  subType,
   title,
   subtitle,
   onTitleChange,
   onSubtitleChange,
 }: DataDrawerProps) {
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const showSecondaryXAxis = chartType === 'line' && subType === 'multi-x';
+  const secondaryCategories = data.secondaryCategories || data.categories.map(getSecondaryCategoryFallback);
+  const supportsMarkers = chartType === 'bar' || chartType === 'line';
 
   const handleClose = () => {
     onClose();
@@ -47,6 +63,12 @@ export function DataDrawer({
     const newCategories = [...data.categories];
     newCategories[idx] = val;
     onChange({ ...data, categories: newCategories });
+  };
+
+  const updateSecondaryCategory = (idx: number, val: string) => {
+    const newCategories = [...secondaryCategories];
+    newCategories[idx] = val;
+    onChange({ ...data, secondaryCategories: newCategories });
   };
 
   const updateSeriesName = (sIdx: number, val: string) => {
@@ -74,6 +96,9 @@ export function DataDrawer({
   const addRow = () => {
     onChange({
       categories: [...data.categories, `分类${data.categories.length + 1}`],
+      secondaryCategories: showSecondaryXAxis
+        ? [...secondaryCategories, getSecondaryCategoryFallback(`分类${data.categories.length + 1}`, data.categories.length)]
+        : data.secondaryCategories,
       series: data.series.map(s => ({
         ...s,
         data: [...s.data, 0]
@@ -104,11 +129,54 @@ export function DataDrawer({
     if (data.categories.length <= 1) return;
     onChange({
       categories: data.categories.filter((_, idx) => idx !== cIdx),
+      secondaryCategories: data.secondaryCategories?.filter((_, idx) => idx !== cIdx),
       series: data.series.map(s => ({
         ...s,
         data: s.data.filter((_, idx) => idx !== cIdx)
       }))
     });
+  };
+
+  const addMarkLine = () => {
+    const marker: ChartMarker = {
+      id: `mark-line-${Date.now()}`,
+      name: '平均线',
+      type: 'average',
+    };
+
+    onChange({ ...data, markLines: [...(data.markLines || []), marker] });
+  };
+
+  const addMarkPoint = () => {
+    const marker: ChartMarker = {
+      id: `mark-point-${Date.now()}`,
+      name: '最大值',
+      type: 'max',
+      seriesIndex: 0,
+      categoryIndex: 0,
+    };
+
+    onChange({ ...data, markPoints: [...(data.markPoints || []), marker] });
+  };
+
+  const updateMarkLine = (idx: number, patch: Partial<ChartMarker>) => {
+    const markers = [...(data.markLines || [])];
+    markers[idx] = { ...markers[idx], ...patch };
+    onChange({ ...data, markLines: markers });
+  };
+
+  const updateMarkPoint = (idx: number, patch: Partial<ChartMarker>) => {
+    const markers = [...(data.markPoints || [])];
+    markers[idx] = { ...markers[idx], ...patch };
+    onChange({ ...data, markPoints: markers });
+  };
+
+  const removeMarkLine = (idx: number) => {
+    onChange({ ...data, markLines: (data.markLines || []).filter((_, markerIndex) => markerIndex !== idx) });
+  };
+
+  const removeMarkPoint = (idx: number) => {
+    onChange({ ...data, markPoints: (data.markPoints || []).filter((_, markerIndex) => markerIndex !== idx) });
   };
 
   return (
@@ -201,6 +269,9 @@ export function DataDrawer({
                 <tr>
                   <th className="w-10 border-r border-outline-variant/50"></th>
                   <th className="py-sm px-sm border-r border-outline-variant/50 w-32 sticky left-0 bg-surface-container-low z-10">类别 \ 系列</th>
+                  {showSecondaryXAxis && (
+                    <th className="py-sm px-sm border-r border-outline-variant/50 w-36 bg-surface-container-low">第二 X 轴</th>
+                  )}
                   {data.series.map((s, idx) => (
                     <th key={idx} className="py-xs px-xs border-r border-outline-variant/50 relative group min-w-[140px]">
                       <div className="flex flex-col gap-xs pr-6">
@@ -257,6 +328,15 @@ export function DataDrawer({
                           onChange={(e) => updateCategory(cIdx, e.target.value)}
                         />
                     </td>
+                    {showSecondaryXAxis && (
+                      <td className="py-xs px-xs border-r border-outline-variant/30 bg-surface-container-lowest">
+                        <input
+                          className="w-full bg-transparent p-1 outline-none focus:ring-1 focus:ring-primary rounded hover:bg-surface-variant text-on-surface"
+                          value={secondaryCategories[cIdx] || ''}
+                          onChange={(e) => updateSecondaryCategory(cIdx, e.target.value)}
+                        />
+                      </td>
+                    )}
                     {data.series.map((s, sIdx) => (
                       <td key={sIdx} className="py-xs px-xs border-r border-outline-variant/30">
                         <input
@@ -273,6 +353,154 @@ export function DataDrawer({
             </table>
           </div>
         </div>
+
+        {supportsMarkers && (
+          <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
+            <div className="flex items-center justify-between">
+              <h4 className="font-label-md text-label-md text-on-surface font-semibold">标记数据</h4>
+              <div className="flex gap-sm">
+                <button onClick={addMarkLine} className="flex items-center gap-xs px-sm py-xs bg-surface-container-high hover:bg-surface-variant text-on-surface rounded-md text-label-md font-label-md transition-colors shadow-sm cursor-pointer">
+                  <PlusSquare className="w-4 h-4" />
+                  添加标记线
+                </button>
+                <button onClick={addMarkPoint} className="flex items-center gap-xs px-sm py-xs bg-surface-container-high hover:bg-surface-variant text-on-surface rounded-md text-label-md font-label-md transition-colors shadow-sm cursor-pointer">
+                  <PlusSquare className="w-4 h-4" />
+                  添加标记点
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-md">
+              <div className="rounded-md border border-outline-variant/30 overflow-hidden">
+                <div className="px-sm py-xs bg-surface-container-low text-label-md font-label-md text-on-surface font-semibold">标记线</div>
+                <div className="p-sm flex flex-col gap-sm">
+                  {(data.markLines || []).length === 0 ? (
+                    <div className="text-body-sm text-on-surface-variant py-sm">暂无标记线</div>
+                  ) : (
+                    (data.markLines || []).map((marker, idx) => (
+                      <div key={marker.id} className="grid grid-cols-12 gap-xs items-center">
+                        <input
+                          className="col-span-3 p-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm outline-none focus:ring-1 focus:ring-primary"
+                          value={marker.name}
+                          onChange={(event) => updateMarkLine(idx, { name: event.target.value })}
+                          placeholder="名称"
+                        />
+                        <Select value={marker.type} onValueChange={(value) => updateMarkLine(idx, { type: value as ChartMarkerType })}>
+                          <SelectTrigger className="col-span-3 h-[32px] text-body-sm px-xs">
+                            <SelectValue placeholder="类型" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[90]">
+                            {MARKER_TYPE_OPTIONS.map(option => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={marker.seriesIndex == null ? 'all' : String(marker.seriesIndex)}
+                          onValueChange={(value) => updateMarkLine(idx, { seriesIndex: value === 'all' ? undefined : Number(value) })}
+                        >
+                          <SelectTrigger className="col-span-3 h-[32px] text-body-sm px-xs">
+                            <SelectValue placeholder="系列" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[90]">
+                            <SelectItem value="all">全部系列</SelectItem>
+                            {data.series.map((series, seriesIndex) => (
+                              <SelectItem key={seriesIndex} value={String(seriesIndex)}>{series.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {marker.type === 'custom' ? (
+                          <input
+                            className="col-span-2 p-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm outline-none focus:ring-1 focus:ring-primary"
+                            type="number"
+                            value={marker.value ?? 0}
+                            onChange={(event) => updateMarkLine(idx, { value: Number(event.target.value) })}
+                          />
+                        ) : (
+                          <div className="col-span-2 text-body-sm text-on-surface-variant">自动</div>
+                        )}
+                        <button onClick={() => removeMarkLine(idx)} className="col-span-1 p-xs text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-outline-variant/30 overflow-hidden">
+                <div className="px-sm py-xs bg-surface-container-low text-label-md font-label-md text-on-surface font-semibold">标记点</div>
+                <div className="p-sm flex flex-col gap-sm">
+                  {(data.markPoints || []).length === 0 ? (
+                    <div className="text-body-sm text-on-surface-variant py-sm">暂无标记点</div>
+                  ) : (
+                    (data.markPoints || []).map((marker, idx) => (
+                      <div key={marker.id} className="grid grid-cols-12 gap-xs items-center">
+                        <input
+                          className="col-span-2 p-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm outline-none focus:ring-1 focus:ring-primary"
+                          value={marker.name}
+                          onChange={(event) => updateMarkPoint(idx, { name: event.target.value })}
+                          placeholder="名称"
+                        />
+                        <Select value={marker.type} onValueChange={(value) => updateMarkPoint(idx, { type: value as ChartMarkerType })}>
+                          <SelectTrigger className="col-span-2 h-[32px] text-body-sm px-xs">
+                            <SelectValue placeholder="类型" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[90]">
+                            {MARKER_TYPE_OPTIONS.map(option => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={marker.seriesIndex == null ? '0' : String(marker.seriesIndex)}
+                          onValueChange={(value) => updateMarkPoint(idx, { seriesIndex: Number(value) })}
+                        >
+                          <SelectTrigger className="col-span-2 h-[32px] text-body-sm px-xs">
+                            <SelectValue placeholder="系列" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[90]">
+                            {data.series.map((series, seriesIndex) => (
+                              <SelectItem key={seriesIndex} value={String(seriesIndex)}>{series.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {marker.type === 'custom' ? (
+                          <>
+                            <Select
+                              value={String(marker.categoryIndex ?? 0)}
+                              onValueChange={(value) => updateMarkPoint(idx, { categoryIndex: Number(value) })}
+                            >
+                              <SelectTrigger className="col-span-3 h-[32px] text-body-sm px-xs">
+                                <SelectValue placeholder="类别" />
+                              </SelectTrigger>
+                              <SelectContent className="z-[90]">
+                                {data.categories.map((category, categoryIndex) => (
+                                  <SelectItem key={categoryIndex} value={String(categoryIndex)}>{category}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <input
+                              className="col-span-2 p-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm outline-none focus:ring-1 focus:ring-primary"
+                              type="number"
+                              value={marker.value ?? 0}
+                              onChange={(event) => updateMarkPoint(idx, { value: Number(event.target.value) })}
+                            />
+                          </>
+                        ) : (
+                          <div className="col-span-5 text-body-sm text-on-surface-variant">自动</div>
+                        )}
+                        <button onClick={() => removeMarkPoint(idx)} className="col-span-1 p-xs text-on-surface-variant hover:text-error transition-colors cursor-pointer">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-md border-t border-outline-variant/30 bg-surface-container-low flex justify-end gap-sm">

@@ -6,7 +6,7 @@ import { X, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { Slider } from '@/components/ui/Slider';
-import { ChartOptions, ChartType } from '@/types';
+import { ChartOptions, ChartSymbolType, ChartType } from '@/types';
 
 interface StyleDrawerProps {
   isOpen: boolean;
@@ -43,6 +43,55 @@ const THEMES = [
   { value: 'tech-blue', label: '科技蓝 (Tech Blue)' },
   { value: 'mint', label: '清爽薄荷 (Mint)' },
 ];
+
+const SYMBOL_OPTIONS: { value: ChartSymbolType; label: string }[] = [
+  { value: 'emptyCircle', label: '空心圆' },
+  { value: 'circle', label: '实心圆' },
+  { value: 'rect', label: '方形' },
+  { value: 'roundRect', label: '圆角方形' },
+  { value: 'triangle', label: '三角形' },
+  { value: 'diamond', label: '菱形' },
+  { value: 'pin', label: '气泡图钉' },
+  { value: 'arrow', label: '箭头' },
+  { value: 'none', label: '不显示' },
+];
+
+const BAR_LABEL_POSITION_OPTIONS: { value: ChartOptions['labelPosition']; label: string }[] = [
+  { value: 'top', label: '上方' },
+  { value: 'inside', label: '内部居中' },
+  { value: 'insideTop', label: '内部上方' },
+  { value: 'insideBottom', label: '内部下方' },
+  { value: 'left', label: '左侧' },
+  { value: 'right', label: '右侧' },
+  { value: 'bottom', label: '下方' },
+  { value: 'insideLeft', label: '内部左侧' },
+  { value: 'insideRight', label: '内部右侧' },
+];
+
+const POINT_LABEL_POSITION_OPTIONS: { value: ChartOptions['labelPosition']; label: string }[] = [
+  { value: 'top', label: '上方' },
+  { value: 'bottom', label: '下方' },
+  { value: 'left', label: '左侧' },
+  { value: 'right', label: '右侧' },
+];
+
+const PIE_LABEL_POSITION_OPTIONS: { value: ChartOptions['labelPosition']; label: string }[] = [
+  { value: 'outside', label: '外侧' },
+  { value: 'inside', label: '内部' },
+];
+
+function getSeriesSizeLabel(chartType: ChartType) {
+  if (chartType === 'bar') return '柱形宽度';
+  if (chartType === 'line') return '线条粗细';
+  if (chartType === 'scatter') return '散点大小';
+  return '图形尺寸';
+}
+
+function getLabelPositionOptions(chartType: ChartType) {
+  if (chartType === 'line' || chartType === 'scatter') return POINT_LABEL_POSITION_OPTIONS;
+  if (chartType === 'pie') return PIE_LABEL_POSITION_OPTIONS;
+  return BAR_LABEL_POSITION_OPTIONS;
+}
 
 export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, options, onOptionsChange, chartType }: StyleDrawerProps) {
   const [activePane, setActivePane] = useState<PaneType>('main');
@@ -219,7 +268,7 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
           <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
             <div>
               <div className="flex justify-between mb-sm">
-                <label className="text-label-md font-label-md text-on-surface font-medium">柱子宽度 / 线条粗细 / 散点大小</label>
+                <label className="text-label-md font-label-md text-on-surface font-medium">{getSeriesSizeLabel(chartType)}</label>
                 <span className="text-body-md text-on-surface-variant font-code-sm">{options.barWidth}%</span>
               </div>
               <Slider 
@@ -227,6 +276,34 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
                 onValueChange={(v) => updateOption('barWidth', v[0])} 
               />
             </div>
+            {chartType === 'line' && (
+              <>
+                <hr className="border-outline-variant/30" />
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">折线节点形状</label>
+                  <Select value={options.lineSymbol} onValueChange={(v) => updateOption('lineSymbol', v as ChartSymbolType)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="节点形状" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SYMBOL_OPTIONS.map(option => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-sm">
+                    <label className="text-label-md font-label-md text-on-surface font-medium">折线节点大小</label>
+                    <span className="text-body-md text-on-surface-variant font-code-sm">{options.lineSymbolSize}px</span>
+                  </div>
+                  <Slider
+                    min={4} max={24} step={1} value={[options.lineSymbolSize]}
+                    onValueChange={(v) => updateOption('lineSymbolSize', v[0])}
+                  />
+                </div>
+              </>
+            )}
             <div>
               <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">数据标签位置</label>
               <div className="flex items-center justify-between mb-md">
@@ -238,19 +315,79 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
                   <SelectValue placeholder="位置" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="top">柱子上方</SelectItem>
-                  <SelectItem value="inside">柱子中间</SelectItem>
-                  <SelectItem value="insideTop">柱内顶部</SelectItem>
-                  <SelectItem value="insideBottom">柱内底部</SelectItem>
-                  <SelectItem value="left">左侧</SelectItem>
-                  <SelectItem value="right">右侧</SelectItem>
-                  <SelectItem value="bottom">底部</SelectItem>
-                  <SelectItem value="insideLeft">柱内左侧</SelectItem>
-                  <SelectItem value="insideRight">柱内右侧</SelectItem>
-                  <SelectItem value="outside">外部 (饼图)</SelectItem>
+                  {getLabelPositionOptions(chartType).map(option => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+            {(chartType === 'bar' || chartType === 'line') && (
+              <>
+                <hr className="border-outline-variant/30" />
+                <div className="flex items-center justify-between">
+                  <label className="text-label-md font-label-md text-on-surface font-medium">显示标记线</label>
+                  <Switch checked={options.showMarkLine} onCheckedChange={(v) => updateOption('showMarkLine', v)} />
+                </div>
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">标记线类型</label>
+                  <Select value={options.markLineType} onValueChange={(v: any) => updateOption('markLineType', v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="标记线类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solid">实线</SelectItem>
+                      <SelectItem value="dashed">虚线</SelectItem>
+                      <SelectItem value="dotted">点线</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">标记线颜色</label>
+                  <div className="flex items-center gap-sm">
+                    <div className="relative w-10 h-10 rounded border border-outline-variant/50 overflow-hidden shadow-sm">
+                      <input className="absolute -top-2 -left-2 w-14 h-14 cursor-pointer" type="color" value={options.markLineColor} onChange={(e) => updateOption('markLineColor', e.target.value)} />
+                    </div>
+                    <input className="flex-1 p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary" type="text" value={options.markLineColor} onChange={(e) => updateOption('markLineColor', e.target.value)} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-label-md font-label-md text-on-surface font-medium">显示标记点</label>
+                  <Switch checked={options.showMarkPoint} onCheckedChange={(v) => updateOption('showMarkPoint', v)} />
+                </div>
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">标记点形状</label>
+                  <Select value={options.markPointSymbol} onValueChange={(v) => updateOption('markPointSymbol', v as ChartSymbolType)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="标记点形状" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SYMBOL_OPTIONS.filter(option => option.value !== 'none').map(option => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <div className="flex justify-between mb-sm">
+                    <label className="text-label-md font-label-md text-on-surface font-medium">标记点大小</label>
+                    <span className="text-body-md text-on-surface-variant font-code-sm">{options.markPointSymbolSize}px</span>
+                  </div>
+                  <Slider
+                    min={24} max={80} step={2} value={[options.markPointSymbolSize]}
+                    onValueChange={(v) => updateOption('markPointSymbolSize', v[0])}
+                  />
+                </div>
+                <div>
+                  <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">标记点颜色</label>
+                  <div className="flex items-center gap-sm">
+                    <div className="relative w-10 h-10 rounded border border-outline-variant/50 overflow-hidden shadow-sm">
+                      <input className="absolute -top-2 -left-2 w-14 h-14 cursor-pointer" type="color" value={options.markPointColor} onChange={(e) => updateOption('markPointColor', e.target.value)} />
+                    </div>
+                    <input className="flex-1 p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary" type="text" value={options.markPointColor} onChange={(e) => updateOption('markPointColor', e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
             {chartType === 'line' && (
               <>
                 <hr className="border-outline-variant/30" />

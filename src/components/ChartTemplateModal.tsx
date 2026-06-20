@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { X, LayoutTemplate } from 'lucide-react';
 import { ChartType, ChartSubType, ChartOptions, ChartData } from '@/types';
+import { createSampleChart } from '@/lib/chart-samples';
 import { Chart } from './Chart';
 
 interface Template {
@@ -93,22 +94,90 @@ const TEMPLATES: Template[] = [
   { 
     id: 'log', name: '对数轴示例', desc: '展示跨度极大的数据差异', type: 'line',
     getOptions: { subType: 'log', smoothLine: false, fillArea: false, stepLine: false }
+  },
+  {
+    id: 'multi-x', name: '多 X 轴折线图', desc: '使用上下两组 X 轴对比多个系列', type: 'line',
+    getOptions: { subType: 'multi-x', smoothLine: true, fillArea: false, stepLine: false, showLegend: true }
+  },
+  {
+    id: 'function-plot', name: '函数绘图', desc: '绘制连续函数曲线并支持缩放', type: 'line',
+    getOptions: { subType: 'function-plot', smoothLine: false, fillArea: false, stepLine: false, showLegend: false, showDataLabels: false }
   }
 ];
+
+const THUMBNAIL_BASE_OPTIONS: ChartOptions = {
+  animationDuration: 0,
+  backgroundColor: undefined,
+  showGrid: false,
+  showTitle: false,
+  title: '',
+  subtitle: '',
+  titleAlign: 'center',
+  titleSize: 20,
+  titleBold: true,
+  showLegend: false,
+  legendLayout: 'horizontal',
+  legendType: 'plain',
+  showTooltip: false,
+  tooltipAlpha: 0.95,
+  showXAxis: false,
+  xLabelRotate: 0,
+  showYSplitLine: false,
+  ySplitLineType: 'dashed',
+  barWidth: 28,
+  showDataLabels: false,
+  labelPosition: 'top',
+  smoothLine: false,
+  fillArea: false,
+  stepLine: false,
+  lineSymbol: 'none',
+  lineSymbolSize: 8,
+  showMarkLine: false,
+  markLineType: 'dashed',
+  markLineColor: '#ef4444',
+  showMarkPoint: false,
+  markPointSymbol: 'pin',
+  markPointSymbolSize: 48,
+  markPointColor: '#ef4444',
+  subType: 'basic',
+};
+
+const BROKEN_AXIS_THUMBNAIL_DATA: ChartData = {
+  categories: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+  series: [
+    { name: '数据 A', data: [1500, 2032, 2001, 3154, 2190, 4330, 2410] },
+    { name: '数据 B', data: [1200, 1320, 1010, 1340, 900, 2300, 2100] },
+    { name: '数据 C', data: [103200, 100320, 103010, 102340, 103900, 103300, 103200] },
+    { name: '数据 D', data: [3106212, 3102118, 3102643, 3104631, 3106679, 3100130, 3107022] },
+  ],
+};
+
+function getThumbnailData(chartType: ChartType, subType: ChartSubType, baseData: ChartData): ChartData {
+  if (chartType === 'bar' && subType === 'broken-axis') {
+    return BROKEN_AXIS_THUMBNAIL_DATA;
+  }
+
+  if (chartType === 'line' && subType === 'multi-x') {
+    return {
+      ...baseData,
+      secondaryCategories: baseData.categories.map((category, index) => `${category}-对比${index + 1}`),
+    };
+  }
+
+  return baseData;
+}
 
 export interface ChartTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   chartType: ChartType;
   currentSubType: ChartSubType | undefined;
-  data: ChartData;
-  options: ChartOptions;
-  theme: string;
   onSelect: (subType: ChartSubType, options: Partial<ChartOptions>) => void;
 }
 
-export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType = 'basic', data, options, theme, onSelect }: ChartTemplateModalProps) {
+export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType = 'basic', onSelect }: ChartTemplateModalProps) {
   const validTemplates = useMemo(() => TEMPLATES.filter(t => t.type === chartType), [chartType]);
+  const thumbnailSample = useMemo(() => createSampleChart(chartType, 20240620), [chartType]);
 
   if (!isOpen) return null;
 
@@ -145,7 +214,7 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                  const actualSubType = template.getOptions?.subType || template.id;
                  const isActive = currentSubType === actualSubType;
                  const thumbnailOptions = {
-                    ...options,
+                    ...THUMBNAIL_BASE_OPTIONS,
                     ...(template.getOptions || {}),
                     animationDuration: 0,
                     showTitle: false,
@@ -155,11 +224,15 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                     showGrid: false,
                     showYSplitLine: false,
                     showDataLabels: false,
+                    showMarkLine: false,
+                    showMarkPoint: false,
+                    lineSymbol: 'none',
                     labelPosition: 'top',
                     title: '',
                     subtitle: '',
                     subType: actualSubType,
                  } as ChartOptions;
+                 const thumbnailData = getThumbnailData(chartType, actualSubType, thumbnailSample.data);
 
                  return (
                    <div 
@@ -177,8 +250,8 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                            <Chart
                               className="w-full h-full"
                               isSidebarCollapsed={true}
-                              theme={theme}
-                              data={data}
+                              theme="default"
+                              data={thumbnailData}
                               options={thumbnailOptions}
                               chartType={chartType}
                            />

@@ -47,6 +47,15 @@ const DEFAULT_OPTIONS: ChartOptions = {
   smoothLine: false,
   fillArea: false,
   stepLine: false,
+  lineSymbol: 'emptyCircle',
+  lineSymbolSize: 8,
+  showMarkLine: true,
+  markLineType: 'dashed',
+  markLineColor: '#ef4444',
+  showMarkPoint: true,
+  markPointSymbol: 'pin',
+  markPointSymbolSize: 48,
+  markPointColor: '#ef4444',
   subType: 'basic'
 };
 
@@ -72,6 +81,15 @@ function applyBarTemplateRoles(data: ChartData, subType: ChartSubType): ChartDat
       ...series,
       role: getTemplateSeriesRole(subType, seriesIndex, data.series.length),
     })),
+  };
+}
+
+function withSecondaryCategories(data: ChartData): ChartData {
+  if (data.secondaryCategories?.length === data.categories.length) return data;
+
+  return {
+    ...data,
+    secondaryCategories: data.categories.map((category, index) => `${category}-对比${index + 1}`),
   };
 }
 
@@ -119,6 +137,7 @@ export function EasyChartApp() {
       smoothLine: false,
       fillArea: false,
       stepLine: false,
+      labelPosition: type === 'pie' ? 'outside' : 'top',
     }));
   };
 
@@ -310,6 +329,7 @@ export function EasyChartApp() {
         data={chartData}
         onChange={setChartData}
         chartType={chartType}
+        subType={chartOptions.subType}
         title={chartOptions.title}
         subtitle={chartOptions.subtitle}
         onTitleChange={(title) => setChartOptions(prev => ({ ...prev, title }))}
@@ -330,13 +350,13 @@ export function EasyChartApp() {
         onClose={() => setIsTemplateModalOpen(false)}
         chartType={chartType}
         currentSubType={chartOptions.subType}
-        data={chartData}
-        options={chartOptions}
-        theme={chartTheme}
         onSelect={(subType, templateOptions) => {
           setChartOptions(prev => ({ ...prev, ...templateOptions, subType }));
           if (chartType === 'bar') {
             setChartData(prev => applyBarTemplateRoles(prev, subType));
+          }
+          if (chartType === 'line' && subType === 'multi-x') {
+            setChartData(prev => withSecondaryCategories(prev));
           }
           setIsTemplateModalOpen(false);
           showToast('已切换图表模板！');
