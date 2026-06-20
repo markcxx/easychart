@@ -34,8 +34,20 @@ const MARKER_TYPE_OPTIONS: { value: ChartMarkerType; label: string }[] = [
   { value: 'custom', label: '自定义值' },
 ];
 
+type SeriesStyleKey = 'color' | 'areaColor' | 'areaGradientStart' | 'areaGradientEnd';
+
+const FALLBACK_SERIES_COLORS = ['#2563eb', '#ef4444', '#60a5fa', '#a78bfa', '#22c55e', '#f59e0b'];
+
 function getSecondaryCategoryFallback(category: string, index: number) {
   return `${category}-对比${index + 1}`;
+}
+
+function getFallbackSeriesColor(index: number) {
+  return FALLBACK_SERIES_COLORS[index % FALLBACK_SERIES_COLORS.length];
+}
+
+function getColorInputValue(value: string | undefined, fallback: string) {
+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
 }
 
 export function DataDrawer({
@@ -55,6 +67,13 @@ export function DataDrawer({
   const showSecondaryXAxis = chartType === 'line' && subType === 'multi-x';
   const secondaryCategories = data.secondaryCategories || data.categories.map(getSecondaryCategoryFallback);
   const supportsMarkers = (chartType === 'bar' || chartType === 'line') && !isFunctionPlot;
+  const supportsSeriesColor = chartType === 'line' && !isFunctionPlot;
+  const supportsAreaSeriesStyle = supportsSeriesColor && (
+    subType === 'area' ||
+    subType === 'stacked-area' ||
+    subType === 'gradient-stacked-area'
+  );
+  const supportsGradientSeriesStyle = subType === 'gradient-stacked-area';
   const functionPlot = normalizeFunctionPlot(data.functionPlot);
 
   const handleClose = () => {
@@ -83,6 +102,15 @@ export function DataDrawer({
   const updateSeriesRole = (sIdx: number, role: ChartSeriesRole) => {
     const newSeries = [...data.series];
     newSeries[sIdx] = { ...newSeries[sIdx], role };
+    onChange({ ...data, series: newSeries });
+  };
+
+  const updateSeriesStyle = (sIdx: number, key: SeriesStyleKey, value: string) => {
+    const newSeries = [...data.series];
+    newSeries[sIdx] = {
+      ...newSeries[sIdx],
+      [key]: value.trim() || undefined,
+    };
     onChange({ ...data, series: newSeries });
   };
 
@@ -321,6 +349,85 @@ export function DataDrawer({
                   onChange={(event) => updateFunctionPlot('yMax', Number(event.target.value))}
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {supportsSeriesColor && (
+          <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
+            <h4 className="font-label-md text-label-md text-on-surface font-semibold">系列颜色</h4>
+            <div className="flex flex-col gap-sm">
+              {data.series.map((series, seriesIndex) => {
+                const fallbackColor = getFallbackSeriesColor(seriesIndex);
+                const areaFallback = series.color || fallbackColor;
+                const gradientEndFallback = series.areaColor || '#dbeafe';
+
+                return (
+                  <div key={seriesIndex} className="grid grid-cols-1 xl:grid-cols-[minmax(120px,1fr)_repeat(3,minmax(120px,150px))] gap-sm items-end border border-outline-variant/30 rounded-md p-sm bg-surface">
+                    <div>
+                      <label className="block text-label-sm font-label-md text-on-surface-variant mb-xs">系列</label>
+                      <div className="text-body-md text-on-surface font-medium truncate" title={series.name}>{series.name}</div>
+                    </div>
+                    <div>
+                      <label className="block text-label-sm font-label-md text-on-surface-variant mb-xs">线条颜色</label>
+                      <div className="flex items-center gap-xs">
+                        <input
+                          className="h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer"
+                          type="color"
+                          value={getColorInputValue(series.color, fallbackColor)}
+                          onChange={(event) => updateSeriesStyle(seriesIndex, 'color', event.target.value)}
+                        />
+                        <input
+                          className="min-w-0 flex-1 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface-container-lowest text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          value={series.color || ''}
+                          onChange={(event) => updateSeriesStyle(seriesIndex, 'color', event.target.value)}
+                          placeholder="跟随主题"
+                        />
+                      </div>
+                    </div>
+                    {supportsAreaSeriesStyle && (
+                      <div>
+                        <label className="block text-label-sm font-label-md text-on-surface-variant mb-xs">
+                          {supportsGradientSeriesStyle ? '渐变起始色' : '面积颜色'}
+                        </label>
+                        <div className="flex items-center gap-xs">
+                          <input
+                            className="h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer"
+                            type="color"
+                            value={getColorInputValue(supportsGradientSeriesStyle ? series.areaGradientStart : series.areaColor, areaFallback)}
+                            onChange={(event) => updateSeriesStyle(seriesIndex, supportsGradientSeriesStyle ? 'areaGradientStart' : 'areaColor', event.target.value)}
+                          />
+                          <input
+                            className="min-w-0 flex-1 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface-container-lowest text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            value={(supportsGradientSeriesStyle ? series.areaGradientStart : series.areaColor) || ''}
+                            onChange={(event) => updateSeriesStyle(seriesIndex, supportsGradientSeriesStyle ? 'areaGradientStart' : 'areaColor', event.target.value)}
+                            placeholder="跟随主题"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {supportsGradientSeriesStyle && (
+                      <div>
+                        <label className="block text-label-sm font-label-md text-on-surface-variant mb-xs">渐变结束色</label>
+                        <div className="flex items-center gap-xs">
+                          <input
+                            className="h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer"
+                            type="color"
+                            value={getColorInputValue(series.areaGradientEnd, gradientEndFallback)}
+                            onChange={(event) => updateSeriesStyle(seriesIndex, 'areaGradientEnd', event.target.value)}
+                          />
+                          <input
+                            className="min-w-0 flex-1 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface-container-lowest text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            value={series.areaGradientEnd || ''}
+                            onChange={(event) => updateSeriesStyle(seriesIndex, 'areaGradientEnd', event.target.value)}
+                            placeholder="跟随主题"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

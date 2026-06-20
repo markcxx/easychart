@@ -6,6 +6,10 @@ export interface ChartSeries {
   name: string;
   data: number[];
   role?: ChartSeriesRole;
+  color?: string;
+  areaColor?: string;
+  areaGradientStart?: string;
+  areaGradientEnd?: string;
 }
 
 export interface ChartMarker {
@@ -88,6 +92,8 @@ export interface ChartOptions {
 
   // Series options
   barWidth: number;
+  lineWidth: number;
+  scatterSize: number;
   showDataLabels: boolean;
   labelPosition:
     | 'none'
@@ -108,6 +114,13 @@ export interface ChartOptions {
   stepLine: boolean;
   lineSymbol: ChartSymbolType;
   lineSymbolSize: number;
+  useCustomLinePalette: boolean;
+  lineColor: string;
+  secondaryLineColor: string;
+  areaColor: string;
+  areaOpacity: number;
+  areaGradientStart: string;
+  areaGradientEnd: string;
 
   // Markers
   showMarkLine: boolean;

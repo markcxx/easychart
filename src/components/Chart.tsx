@@ -15,7 +15,7 @@ import {
 } from 'echarts/components';
 import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
-import { ChartData, ChartType, ChartOptions } from '@/types';
+import { ChartData, ChartType, ChartOptions, ChartSeries } from '@/types';
 import { DARK_CHART_THEMES, registerEchartsThemes } from '@/lib/echarts-themes';
 import { generateFunctionPlotData, normalizeFunctionPlot } from '@/lib/function-plot';
 
@@ -108,6 +108,99 @@ function getTooltipOption(options: ChartOptions, isPie = false) {
 
 function shouldShowAxisLabels(options: ChartOptions) {
   return options.showAxisLabels ?? options.showXAxis;
+}
+
+function shouldShowSplitLine(options: ChartOptions) {
+  return options.showGrid && options.showYSplitLine;
+}
+
+function getAnimationOption(options: ChartOptions) {
+  const enabled = options.animationDuration > 0;
+
+  return {
+    animation: enabled,
+    animationDuration: options.animationDuration,
+    animationDurationUpdate: options.animationDuration,
+    animationEasing: 'cubicOut' as const,
+    animationEasingUpdate: 'cubicOut' as const,
+  };
+}
+
+function getLinePalette(options: ChartOptions) {
+  return [
+    options.lineColor,
+    options.secondaryLineColor,
+    '#60a5fa',
+    '#a78bfa',
+    '#22c55e',
+    '#f59e0b',
+  ].filter(Boolean);
+}
+
+function getDefaultLineColor(options: ChartOptions, seriesIndex: number) {
+  const palette = getLinePalette(options);
+  return palette[seriesIndex % palette.length];
+}
+
+function getLineColor(options: ChartOptions, series: ChartSeries | undefined, seriesIndex: number, hasTheme: boolean) {
+  if (series?.color) return series.color;
+  return hasTheme && !options.useCustomLinePalette ? undefined : getDefaultLineColor(options, seriesIndex);
+}
+
+function getLineStyle(options: ChartOptions, series: ChartSeries | undefined, seriesIndex: number, hasTheme: boolean) {
+  const color = getLineColor(options, series, seriesIndex, hasTheme);
+  return color ? { width: options.lineWidth, color } : { width: options.lineWidth };
+}
+
+function getLineItemStyle(options: ChartOptions, series: ChartSeries | undefined, seriesIndex: number, hasTheme: boolean) {
+  const color = getLineColor(options, series, seriesIndex, hasTheme);
+  return color ? { color } : undefined;
+}
+
+function colorWithAlpha(color: string, alpha: number) {
+  if (!color.startsWith('#')) return color;
+
+  const raw = color.slice(1);
+  const value = raw.length === 3
+    ? raw.split('').map(part => part + part).join('')
+    : raw;
+
+  if (value.length !== 6) return color;
+
+  const red = parseInt(value.slice(0, 2), 16);
+  const green = parseInt(value.slice(2, 4), 16);
+  const blue = parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function getLineAreaStyle(options: ChartOptions, series: ChartSeries | undefined, seriesIndex: number, hasTheme: boolean) {
+  const lineColor = getLineColor(options, series, seriesIndex, hasTheme);
+  const baseColor = series?.areaColor || options.areaColor || lineColor;
+  const gradientStart = series?.areaGradientStart || options.areaGradientStart || lineColor;
+  const gradientEnd = series?.areaGradientEnd || options.areaGradientEnd || baseColor;
+
+  const themeOwnsColor = hasTheme && !options.useCustomLinePalette;
+
+  if (options.subType === 'gradient-stacked-area' && (series?.areaGradientStart || series?.areaGradientEnd || !themeOwnsColor)) {
+    return {
+      color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        { offset: 0, color: colorWithAlpha(gradientStart || '#2563eb', Math.max(options.areaOpacity, 0.2)) },
+        { offset: 1, color: colorWithAlpha(gradientEnd || '#dbeafe', 0.08) },
+      ]),
+    };
+  }
+
+  if (baseColor && (series?.areaColor || !themeOwnsColor)) {
+    return {
+      color: baseColor,
+      opacity: options.areaOpacity,
+    };
+  }
+
+  return {
+    opacity: options.areaOpacity,
+  };
 }
 
 function getMarkerName(type: string, fallback: string) {
@@ -302,7 +395,7 @@ function getCategoryAxis(categories: string[], options: ChartOptions, isHorizont
     axisLabel: { show: shouldShowAxisLabels(options) },
     axisTick: { show: options.showXAxis },
     axisLine: { show: options.showXAxis },
-    splitLine: { show: isHorizontal && options.showYSplitLine, lineStyle: { type: options.ySplitLineType } },
+    splitLine: { show: isHorizontal && shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType } },
   };
 }
 
@@ -313,17 +406,19 @@ function getValueAxis(options: ChartOptions, categories?: string[]) {
     axisLabel: { show: shouldShowAxisLabels(options) },
     axisTick: { show: options.showXAxis },
     axisLine: { show: options.showXAxis },
-    splitLine: { show: !categories && options.showYSplitLine, lineStyle: { type: options.ySplitLineType } },
+    splitLine: { show: !categories && shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType } },
   };
 }
 
 function getBarGrid(options: ChartOptions, topWhenTitle = 90, topWithoutTitle = 24) {
   return {
+    show: options.showGrid,
     left: '5%',
     right: '5%',
     top: options.showTitle ? topWhenTitle : topWithoutTitle,
     bottom: options.showXAxis ? '8%' : '5%',
-    containLabel: options.showXAxis,
+    containLabel: shouldShowAxisLabels(options),
+    borderColor: '#e9e8e5',
   };
 }
 
@@ -372,7 +467,7 @@ function inferNegativeBarRole(seriesIndex: number, seriesCount: number) {
 function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean) {
   const categories = getChartCategories(data);
   const common = {
-    animationDuration: options.animationDuration,
+    ...getAnimationOption(options),
     backgroundColor: options.backgroundColor || 'transparent',
     title: getTitleOption(options, isDarkTheme),
     tooltip: getTooltipOption(options),
@@ -392,7 +487,7 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
 
     return {
       ...common,
-      grid: { left: '3%', right: '4%', bottom: '3%', top: options.showTitle ? 80 : 20, containLabel: true },
+      grid: { show: options.showGrid, left: '3%', right: '4%', bottom: '3%', top: options.showTitle ? 80 : 20, containLabel: true },
       xAxis: {
         type: 'category',
         splitLine: { show: false },
@@ -406,6 +501,7 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
         axisLabel: { show: shouldShowAxisLabels(options) },
         axisTick: { show: options.showXAxis },
         axisLine: { show: options.showXAxis },
+        splitLine: { show: shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType } },
       },
       series: [
         {
@@ -440,11 +536,11 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
 
     return {
       ...common,
-      grid: { top: options.showTitle ? 80 : 30, bottom: 30, containLabel: true },
+      grid: { show: options.showGrid, top: options.showTitle ? 80 : 30, bottom: 30, containLabel: true },
       xAxis: {
         type: 'value',
         position: 'top',
-        splitLine: { lineStyle: { type: 'dashed' } },
+        splitLine: { show: shouldShowSplitLine(options), lineStyle: { type: 'dashed' } },
       },
       yAxis: {
         type: 'category',
@@ -523,6 +619,7 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
           axisLabel: { show: shouldShowAxisLabels(options) },
           axisTick: { show: options.showXAxis },
           axisLine: { show: options.showXAxis },
+          splitLine: { show: shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType } },
           breakArea: hasLargeGap
             ? {
               itemStyle: { opacity: 1 },
@@ -578,10 +675,10 @@ function getSecondaryCategories(data: ChartData, categories: string[]) {
   return categories.map((category, index) => `${category}-对比${index + 1}`);
 }
 
-function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean) {
+function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean) {
   const categories = getChartCategories(data);
   const common = {
-    animationDuration: options.animationDuration,
+    ...getAnimationOption(options),
     backgroundColor: options.backgroundColor || 'transparent',
     title: getTitleOption(options, isDarkTheme),
   };
@@ -591,7 +688,6 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
 
     return {
       ...common,
-      animation: false,
       tooltip: options.showTooltip
         ? {
           trigger: 'axis',
@@ -605,6 +701,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         }
         : undefined,
       grid: {
+        show: options.showGrid,
         top: options.showTitle ? 80 : 40,
         left: 50,
         right: 40,
@@ -616,7 +713,8 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         axisTick: { show: options.showXAxis },
         axisLine: { show: options.showXAxis },
         minorTick: { show: options.showXAxis },
-        minorSplitLine: { show: options.showXAxis },
+        splitLine: { show: shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType } },
+        minorSplitLine: { show: options.showGrid },
       },
       yAxis: {
         name: options.showXAxis ? 'y' : undefined,
@@ -626,7 +724,8 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         axisTick: { show: options.showXAxis },
         axisLine: { show: options.showXAxis },
         minorTick: { show: options.showXAxis },
-        minorSplitLine: { show: options.showXAxis },
+        splitLine: { show: shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType } },
+        minorSplitLine: { show: options.showGrid },
       },
       dataZoom: [
         {
@@ -652,22 +751,25 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
           type: 'line',
           showSymbol: false,
           clip: true,
-          lineStyle: { width: options.barWidth / 10 },
+          lineStyle: getLineStyle(options, undefined, 0, hasTheme),
+          itemStyle: getLineItemStyle(options, undefined, 0, hasTheme),
           data: generateFunctionPlotData(functionPlot),
         },
       ],
     };
   }
 
-  const colors = ['#5470C6', '#EE6666'];
   const secondaryCategories = getSecondaryCategories(data, categories);
   const sourceSeries = data.series.length
     ? data.series
     : [{ name: '系列1', data: categories.map(() => 0) }];
+  const lineColors = getLinePalette(options).slice(0, 2);
+  const secondaryAxisColor = getLineColor(options, sourceSeries[0], 0, hasTheme);
+  const primaryAxisColor = getLineColor(options, sourceSeries[1], 1, hasTheme);
 
   return {
     ...common,
-    color: colors,
+    color: hasTheme && !options.useCustomLinePalette ? undefined : lineColors,
     tooltip: options.showTooltip
       ? {
         trigger: 'none',
@@ -682,6 +784,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
       : undefined,
     legend: options.showLegend ? {} : undefined,
     grid: {
+      show: options.showGrid,
       top: options.showTitle ? 90 : 70,
       bottom: 50,
       left: '5%',
@@ -697,7 +800,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         axisLine: {
           onZero: false,
           show: options.showXAxis,
-          lineStyle: { color: colors[1] },
+          lineStyle: primaryAxisColor ? { color: primaryAxisColor } : undefined,
         },
         axisPointer: {
           label: {
@@ -714,7 +817,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         axisLine: {
           onZero: false,
           show: options.showXAxis,
-          lineStyle: { color: colors[0] },
+          lineStyle: secondaryAxisColor ? { color: secondaryAxisColor } : undefined,
         },
         axisPointer: {
           label: {
@@ -731,7 +834,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         axisTick: { show: options.showXAxis },
         axisLine: { show: options.showXAxis },
         splitLine: {
-          show: options.showYSplitLine,
+          show: shouldShowSplitLine(options),
           lineStyle: { type: options.ySplitLineType },
         },
       },
@@ -749,7 +852,8 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         symbol: options.lineSymbol,
         showSymbol: options.lineSymbol !== 'none',
         symbolSize: options.lineSymbolSize,
-        lineStyle: { width: options.barWidth / 10 },
+        lineStyle: getLineStyle(options, series, seriesIndex, hasTheme),
+        itemStyle: getLineItemStyle(options, series, seriesIndex, hasTheme),
         emphasis: { focus: 'series' },
         label: getLabelOption(options, 'top'),
         data: values,
@@ -762,18 +866,19 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
 export function Chart({ id, className, isSidebarCollapsed, theme = 'default', data, options, chartType }: ChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
+  const chartTheme = useRef<string>('default');
 
   useEffect(() => {
     if (!chartRef.current) return;
 
-    if (chartInstance.current) {
-        chartInstance.current.dispose();
-    }
-
-    // Init echarts with the selected theme, default needs to be undefined
     const validTheme = theme === 'default' ? undefined : theme;
     const isDarkTheme = validTheme ? DARK_CHART_THEMES.has(validTheme) : false;
-    chartInstance.current = echarts.init(chartRef.current, validTheme);
+
+    if (!chartInstance.current || chartTheme.current !== theme) {
+      chartInstance.current?.dispose();
+      chartInstance.current = echarts.init(chartRef.current, validTheme);
+      chartTheme.current = theme;
+    }
 
     const isPie = chartType === 'pie';
     const isHorizontal = options.subType === 'horizontal' && chartType === 'bar';
@@ -814,20 +919,14 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
               if (options.subType === 'waterfall' && idx === 0) {
                 itemStyle = { ...itemStyle, borderColor: 'transparent', color: 'transparent' };
               }
+            } else if (isLine) {
+              itemStyle = getLineItemStyle(options, s, idx, Boolean(validTheme));
             }
 
             let areaStyle: any = undefined;
             if (isLine) {
                 if (options.subType === 'area' || options.subType === 'stacked-area' || options.subType === 'gradient-stacked-area' || options.fillArea) {
-                    areaStyle = {};
-                    if (options.subType === 'gradient-stacked-area') {
-                        areaStyle = {
-                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(58,77,233,0.8)' },
-                                { offset: 1, color: 'rgba(58,77,233,0.3)' }
-                            ])
-                        };
-                    }
+                    areaStyle = getLineAreaStyle(options, s, idx, Boolean(validTheme));
                 }
             }
 
@@ -844,8 +943,8 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
               barWidth: isBar ? `${options.barWidth}%` : undefined,
               symbol: isLine ? options.lineSymbol : undefined,
               showSymbol: isLine ? options.lineSymbol !== 'none' : undefined,
-              symbolSize: isLine ? options.lineSymbolSize : chartType === 'scatter' ? options.barWidth / 2 : undefined,
-              lineStyle: isLine ? { width: options.barWidth / 10 } : undefined,
+              symbolSize: isLine ? options.lineSymbolSize : chartType === 'scatter' ? options.scatterSize : undefined,
+              lineStyle: isLine ? getLineStyle(options, s, idx, Boolean(validTheme)) : undefined,
               itemStyle,
               stack: stackName,
               smooth: isLine && (options.subType === 'smooth' || options.subType === 'bump' || options.smoothLine) ? true : undefined,
@@ -861,13 +960,17 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
     }
 
     const echartsOption = chartType === 'line' && options.subType && specialLineSubTypes.has(options.subType)
-      ? buildSpecialLineOption(data, options, isDarkTheme)
+      ? buildSpecialLineOption(data, options, isDarkTheme, Boolean(validTheme))
       : chartType === 'bar' && options.subType && officialBarSubTypes.has(options.subType)
         ? buildOfficialBarOption(data, options, isDarkTheme)
         : {
-      animationDuration: options.animationDuration,
+      ...getAnimationOption(options),
       backgroundColor: options.backgroundColor || (validTheme ? undefined : 'transparent'),
-      color: validTheme ? undefined : ['#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#818cf8', '#a78bfa'],
+      color: chartType === 'line' && (!validTheme || options.useCustomLinePalette)
+        ? getLinePalette(options)
+        : validTheme
+          ? undefined
+          : ['#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#818cf8', '#a78bfa'],
       title: getTitleOption(options, isDarkTheme),
       tooltip: options.showTooltip ? {
         trigger: isPie ? 'item' : 'axis',
@@ -915,14 +1018,14 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
            margin: 15,
            rotate: options.xLabelRotate 
         },
-        splitLine: isHorizontal ? { show: options.showYSplitLine, lineStyle: { type: options.ySplitLineType, color: isDarkTheme ? '#334155' : '#e9e8e5' } } : undefined
+        splitLine: isHorizontal ? { show: shouldShowSplitLine(options), lineStyle: { type: options.ySplitLineType, color: isDarkTheme ? '#334155' : '#e9e8e5' } } : undefined
       },
       yAxis: isPie || options.subType === 'polar-label' ? undefined : {
         type: isHorizontal ? 'category' : (options.subType === 'log' ? 'log' : 'value'),
         data: isHorizontal ? data.categories : undefined,
         logBase: options.subType === 'log' ? 10 : undefined,
         splitLine: isHorizontal ? { show: false } : { 
-            show: options.showYSplitLine,
+            show: shouldShowSplitLine(options),
             lineStyle: { type: options.ySplitLineType, color: isDarkTheme ? '#334155' : '#e9e8e5' } 
         },
         axisLabel: {
@@ -936,24 +1039,32 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
       series: seriesData
     };
 
-    chartInstance.current.setOption(echartsOption);
+    chartInstance.current.clear();
+    chartInstance.current.setOption(echartsOption, { notMerge: true, lazyUpdate: false });
+    window.requestAnimationFrame(() => chartInstance.current?.resize());
+  }, [theme, data, options, chartType]);
 
+  useEffect(() => {
     const handleResize = () => {
       chartInstance.current?.resize();
     };
 
     window.addEventListener('resize', handleResize);
-    
-    // Also resize when sidebar collapses/expands
-    const timeout = setTimeout(() => {
-        handleResize();
-    }, 300);
+
+    const timeout = window.setTimeout(handleResize, 300);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      clearTimeout(timeout);
+      window.clearTimeout(timeout);
     };
-  }, [isSidebarCollapsed, theme, data, options, chartType]);
+  }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    return () => {
+      chartInstance.current?.dispose();
+      chartInstance.current = null;
+    };
+  }, []);
 
   return <div id={id} ref={chartRef} className={className} />;
 }

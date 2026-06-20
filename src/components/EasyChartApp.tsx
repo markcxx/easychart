@@ -24,7 +24,7 @@ type DrawerType = 'ai' | 'data' | 'style' | null;
 
 const DEFAULT_SAMPLE = createSampleChart('bar');
 
-const DEFAULT_OPTIONS: ChartOptions = {
+const BASE_OPTIONS: ChartOptions = {
   animationDuration: 1000,
   showGrid: true,
   showTitle: true,
@@ -43,7 +43,9 @@ const DEFAULT_OPTIONS: ChartOptions = {
   xLabelRotate: 0,
   showYSplitLine: true,
   ySplitLineType: 'dashed',
-  barWidth: 20,
+  barWidth: 30,
+  lineWidth: 2,
+  scatterSize: 14,
   showDataLabels: false,
   labelPosition: 'top',
   smoothLine: false,
@@ -51,6 +53,13 @@ const DEFAULT_OPTIONS: ChartOptions = {
   stepLine: false,
   lineSymbol: 'emptyCircle',
   lineSymbolSize: 8,
+  useCustomLinePalette: false,
+  lineColor: '#2563eb',
+  secondaryLineColor: '#ef4444',
+  areaColor: '#93c5fd',
+  areaOpacity: 0.35,
+  areaGradientStart: '#2563eb',
+  areaGradientEnd: '#dbeafe',
   showMarkLine: true,
   markLineType: 'dashed',
   markLineColor: '#ef4444',
@@ -60,6 +69,31 @@ const DEFAULT_OPTIONS: ChartOptions = {
   markPointColor: '#ef4444',
   subType: 'basic'
 };
+
+function createDefaultOptions(type: ChartType, sample = createSampleChart(type)): ChartOptions {
+  return {
+    ...BASE_OPTIONS,
+    title: sample.title,
+    subtitle: sample.subtitle,
+    subType: 'basic',
+    showGrid: type !== 'pie',
+    showXAxis: type !== 'pie',
+    showAxisLabels: type !== 'pie',
+    labelPosition: type === 'pie' ? 'outside' : 'top',
+    barWidth: type === 'bar' ? 30 : BASE_OPTIONS.barWidth,
+    lineWidth: 2,
+    scatterSize: 14,
+    smoothLine: false,
+    fillArea: false,
+    stepLine: false,
+    lineSymbol: 'emptyCircle',
+    lineSymbolSize: 8,
+    useCustomLinePalette: false,
+    showDataLabels: false,
+  };
+}
+
+const DEFAULT_OPTIONS = createDefaultOptions('bar', DEFAULT_SAMPLE);
 
 function getTemplateSeriesRole(subType: ChartSubType, seriesIndex: number, seriesCount: number): ChartSeriesRole {
   if (subType === 'stacked' || subType === 'rounded-stacked' || subType === 'stacked-horizontal') {
@@ -127,27 +161,15 @@ export function EasyChartApp() {
     const sample = createSampleChart('bar', createSampleSeed());
 
     setChartData(sample.data);
-    setChartOptions(prev => ({
-      ...prev,
-      title: sample.title,
-      subtitle: sample.subtitle,
-    }));
+    setChartOptions(createDefaultOptions('bar', sample));
   }, []);
 
   const handleChartSelect = (type: ChartType) => {
     const sample = createSampleChart(type, createSampleSeed());
     setChartType(type);
     setChartData(sample.data);
-    setChartOptions(prev => ({
-      ...prev,
-      title: sample.title,
-      subtitle: sample.subtitle,
-      subType: 'basic',
-      smoothLine: false,
-      fillArea: false,
-      stepLine: false,
-      labelPosition: type === 'pie' ? 'outside' : 'top',
-    }));
+    setChartTheme('default');
+    setChartOptions(createDefaultOptions(type, sample));
   };
 
   const handleDownloadImage = () => {
