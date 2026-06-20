@@ -17,12 +17,22 @@ export interface ChartMarker {
   value?: number;
 }
 
+export interface ChartFunctionPlot {
+  expression: string;
+  xMin: number;
+  xMax: number;
+  step: number;
+  yMin: number;
+  yMax: number;
+}
+
 export interface ChartData {
   categories: string[];
   secondaryCategories?: string[];
   series: ChartSeries[];
   markLines?: ChartMarker[];
   markPoints?: ChartMarker[];
+  functionPlot?: ChartFunctionPlot;
 }
 
 export type ChartType = 'bar' | 'line' | 'pie' | 'scatter';
@@ -71,6 +81,7 @@ export interface ChartOptions {
 
   // Axis
   showXAxis: boolean;
+  showAxisLabels?: boolean;
   xLabelRotate: number;
   showYSplitLine: boolean;
   ySplitLineType: 'solid' | 'dashed' | 'dotted';

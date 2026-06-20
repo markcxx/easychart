@@ -102,6 +102,16 @@
     @apply h-full;
   }
 
+  ::selection {
+    background: #e9d5ff;
+    color: #1a1c1a;
+  }
+
+  ::-moz-selection {
+    background: #e9d5ff;
+    color: #1a1c1a;
+  }
+
   body {
     @apply bg-surface text-on-surface font-body-md overflow-hidden flex flex-col h-screen;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, LayoutTemplate } from 'lucide-react';
 import { ChartType, ChartSubType, ChartOptions, ChartData } from '@/types';
@@ -120,7 +120,8 @@ const THUMBNAIL_BASE_OPTIONS: ChartOptions = {
   legendType: 'plain',
   showTooltip: false,
   tooltipAlpha: 0.95,
-  showXAxis: false,
+  showXAxis: true,
+  showAxisLabels: false,
   xLabelRotate: 0,
   showYSplitLine: false,
   ySplitLineType: 'dashed',
@@ -176,18 +177,46 @@ export interface ChartTemplateModalProps {
 }
 
 export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType = 'basic', onSelect }: ChartTemplateModalProps) {
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(isOpen);
   const validTemplates = useMemo(() => TEMPLATES.filter(t => t.type === chartType), [chartType]);
   const thumbnailSample = useMemo(() => createSampleChart(chartType, 20240620), [chartType]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    let frame = 0;
+    let timeout = 0;
+
+    if (isOpen) {
+      setShouldRender(true);
+      setIsVisible(false);
+      frame = window.requestAnimationFrame(() => setIsVisible(true));
+    } else {
+      setIsVisible(false);
+      timeout = window.setTimeout(() => setShouldRender(false), 300);
+    }
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      if (timeout) window.clearTimeout(timeout);
+    };
+  }, [isOpen]);
+
+  if (!shouldRender) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-surface-container-highest/60 backdrop-blur-sm animate-in fade-in duration-300">
+    <div
+      className={cn(
+        "fixed inset-0 z-[100] flex items-end bg-surface-container-highest/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out",
+        isVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      )}
+    >
       <div 
-        className="bg-surface w-[1000px] max-w-[95vw] max-h-[90vh] rounded-2xl shadow-2xl border border-outline-variant/30 flex flex-col overflow-hidden animate-in zoom-in-95 data-[state=open]:slide-in-from-bottom-10"
-        style={{ animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)', animationDuration: '400ms' }}
+        className={cn(
+          "bg-surface-container-low w-screen h-screen shadow-2xl border-t border-outline-variant/30 flex flex-col overflow-hidden transform transition-transform duration-300 ease-in-out",
+          isVisible ? "translate-y-0" : "translate-y-full"
+        )}
       >
-        <div className="flex justify-between items-center p-lg border-b border-outline-variant/20 bg-surface-container-lowest">
+        <div className="flex justify-between items-center p-lg border-b border-outline-variant/20 bg-surface">
           <div className="flex items-center gap-sm text-on-surface">
             <LayoutTemplate className="w-6 h-6 text-primary" />
             <div className="flex flex-col">
@@ -203,13 +232,13 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-xl bg-surface-container-lowest">
+        <div className="flex-1 overflow-y-auto p-xl bg-surface-container-low">
           {validTemplates.length === 0 ? (
             <div className="text-center text-on-surface-variant p-xl">
               此图表类型暂无预设模板
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-lg pb-xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-lg pb-xl">
               {validTemplates.map((template) => {
                  const actualSubType = template.getOptions?.subType || template.id;
                  const isActive = currentSubType === actualSubType;
@@ -220,7 +249,8 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                     showTitle: false,
                     showLegend: false,
                     showTooltip: false,
-                    showXAxis: false,
+                    showXAxis: true,
+                    showAxisLabels: false,
                     showGrid: false,
                     showYSplitLine: false,
                     showDataLabels: false,
@@ -241,11 +271,16 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                        onSelect(actualSubType, template.getOptions || {});
                      }}
                      className={cn(
-                       "group relative bg-surface rounded-xl border overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 ease-out flex flex-col transform hover:-translate-y-1",
-                       isActive ? "ring-2 ring-primary border-primary shadow-md" : "border-outline-variant/30 hover:border-primary/50"
+                       "group relative cursor-pointer transition-all duration-300 ease-out flex flex-col gap-sm transform hover:-translate-y-1",
+                       isActive ? "text-primary" : "text-on-surface hover:text-primary"
                      )}
                    >
-                     <div className="h-[140px] bg-surface-container-lowest flex items-center justify-center p-sm border-b border-outline-variant/20 overflow-hidden">
+                     <div
+                       className={cn(
+                          "h-[clamp(150px,11.5vw,220px)] bg-surface flex items-center justify-center p-sm border overflow-hidden shadow-sm transition-all duration-300",
+                         isActive ? "border-primary ring-2 ring-primary" : "border-outline-variant/30 group-hover:border-primary/50 group-hover:shadow-md"
+                       )}
+                     >
                         <div className="w-full h-full transform transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-110 pointer-events-none">
                            <Chart
                               className="w-full h-full"
@@ -257,14 +292,11 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                            />
                         </div>
                      </div>
-                     <div className="p-sm flex-1 flex flex-col justify-center bg-surface-container-low transition-colors group-hover:bg-primary-container/10">
-                       <h3 className="text-label-md font-label-md font-bold text-on-surface mb-xs group-hover:text-primary transition-colors flex items-center justify-between">
+                     <div className="px-xs pb-sm">
+                       <h3 className="text-title-sm font-title-sm font-bold transition-colors flex items-center justify-between">
                          {template.name}
                          {isActive && <span className="w-2 h-2 rounded-full bg-primary shadow-sm" />}
                        </h3>
-                       <p className="text-body-sm font-body-sm text-on-surface-variant line-clamp-2 leading-tight">
-                         {template.desc}
-                       </p>
                      </div>
                    </div>
                  );

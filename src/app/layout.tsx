@@ -5,6 +5,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "EasyChart",
   description: "A visual chart editor built with Next.js and ECharts.",
+  icons: {
+    icon: "/easychart.svg",
+    shortcut: "/easychart.svg",
+    apple: "/easychart.svg",
+  },
 };
 
 export default function RootLayout({

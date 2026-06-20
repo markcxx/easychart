@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartColumn, Sparkles, BarChart3 } from 'lucide-react';
+import { Sparkles, BarChart3 } from 'lucide-react';
 
 interface TopNavBarProps {
   onToggleAiDrawer: () => void;
@@ -10,7 +10,7 @@ export function TopNavBar({ onToggleAiDrawer }: TopNavBarProps) {
   return (
     <nav className="relative w-full z-50 flex justify-between items-center px-lg h-16 bg-transparent flex-shrink-0">
       <div className="flex items-center gap-sm">
-        <ChartColumn className="text-primary h-7 w-7" />
+        <img src="/easychart.svg" alt="EasyChart" className="h-8 w-8" />
         <span className="text-headline-sm font-headline-sm font-bold text-primary">EasyChart</span>
       </div>
       

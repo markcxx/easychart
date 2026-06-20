@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { getInstanceByDom } from 'echarts/core';
 import { cn } from '@/lib/utils';
 import { createSampleChart, createSampleSeed } from '@/lib/chart-samples';
+import { DEFAULT_FUNCTION_PLOT } from '@/lib/function-plot';
 import { Database, Palette, Save, Download, Code, Edit2, LayoutTemplate } from 'lucide-react';
 import { TopNavBar } from './TopNavBar';
 import { Sidebar } from './Sidebar';
@@ -38,6 +39,7 @@ const DEFAULT_OPTIONS: ChartOptions = {
   showTooltip: true,
   tooltipAlpha: 0.95,
   showXAxis: true,
+  showAxisLabels: true,
   xLabelRotate: 0,
   showYSplitLine: true,
   ySplitLineType: 'dashed',
@@ -90,6 +92,13 @@ function withSecondaryCategories(data: ChartData): ChartData {
   return {
     ...data,
     secondaryCategories: data.categories.map((category, index) => `${category}-对比${index + 1}`),
+  };
+}
+
+function withFunctionPlot(data: ChartData): ChartData {
+  return {
+    ...data,
+    functionPlot: data.functionPlot || DEFAULT_FUNCTION_PLOT,
   };
 }
 
@@ -208,7 +217,7 @@ export function EasyChartApp() {
             {/* Left: Title & Name */}
             <div className="flex items-center gap-md pl-sm">
               <h1 className="text-title-md font-title-md text-on-surface font-semibold flex items-center gap-xs">
-                <span className="text-primary">■</span> 工作台 - {activeChartName}
+                <img src="/easychart.svg" alt="" className="h-5 w-5" /> 工作台 - {activeChartName}
               </h1>
               <div className="w-px h-4 bg-outline-variant/50"></div>
               <div className="group flex items-center">
@@ -357,6 +366,9 @@ export function EasyChartApp() {
           }
           if (chartType === 'line' && subType === 'multi-x') {
             setChartData(prev => withSecondaryCategories(prev));
+          }
+          if (chartType === 'line' && subType === 'function-plot') {
+            setChartData(prev => withFunctionPlot(prev));
           }
           setIsTemplateModalOpen(false);
           showToast('已切换图表模板！');

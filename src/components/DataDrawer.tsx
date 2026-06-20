@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import { ChartData, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
+import { DEFAULT_FUNCTION_PLOT, normalizeFunctionPlot } from '@/lib/function-plot';
+import { ChartData, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
 
 interface DataDrawerProps {
   isOpen: boolean;
@@ -50,9 +51,11 @@ export function DataDrawer({
   onSubtitleChange,
 }: DataDrawerProps) {
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const isFunctionPlot = chartType === 'line' && subType === 'function-plot';
   const showSecondaryXAxis = chartType === 'line' && subType === 'multi-x';
   const secondaryCategories = data.secondaryCategories || data.categories.map(getSecondaryCategoryFallback);
-  const supportsMarkers = chartType === 'bar' || chartType === 'line';
+  const supportsMarkers = (chartType === 'bar' || chartType === 'line') && !isFunctionPlot;
+  const functionPlot = normalizeFunctionPlot(data.functionPlot);
 
   const handleClose = () => {
     onClose();
@@ -91,6 +94,16 @@ export function DataDrawer({
     newData[cIdx] = num;
     newSeries[sIdx] = { ...newSeries[sIdx], data: newData };
     onChange({ ...data, series: newSeries });
+  };
+
+  const updateFunctionPlot = <K extends keyof ChartFunctionPlot>(key: K, value: ChartFunctionPlot[K]) => {
+    onChange({
+      ...data,
+      functionPlot: {
+        ...functionPlot,
+        [key]: value,
+      },
+    });
   };
 
   const addRow = () => {
@@ -248,7 +261,72 @@ export function DataDrawer({
           <p className="text-body-md font-body-md text-on-surface-variant">支持 .xlsx, .xls, .csv 格式，单文件最大 50MB</p>
         </div>
 
+        {isFunctionPlot && (
+          <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
+            <h4 className="font-label-md text-label-md text-on-surface font-semibold">函数配置</h4>
+            <div>
+              <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">函数表达式</label>
+              <input
+                className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                value={functionPlot.expression}
+                onChange={(event) => updateFunctionPlot('expression', event.target.value)}
+                placeholder={DEFAULT_FUNCTION_PLOT.expression}
+              />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-md">
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">X 最小值</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  value={functionPlot.xMin}
+                  onChange={(event) => updateFunctionPlot('xMin', Number(event.target.value))}
+                />
+              </div>
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">X 最大值</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  value={functionPlot.xMax}
+                  onChange={(event) => updateFunctionPlot('xMax', Number(event.target.value))}
+                />
+              </div>
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">采样步长</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  min="0.01"
+                  step="0.1"
+                  value={functionPlot.step}
+                  onChange={(event) => updateFunctionPlot('step', Number(event.target.value))}
+                />
+              </div>
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">Y 最小值</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  value={functionPlot.yMin}
+                  onChange={(event) => updateFunctionPlot('yMin', Number(event.target.value))}
+                />
+              </div>
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">Y 最大值</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  value={functionPlot.yMax}
+                  onChange={(event) => updateFunctionPlot('yMax', Number(event.target.value))}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Data Grid Preview */}
+        {!isFunctionPlot && (
         <div className="flex flex-col gap-sm">
           <div className="flex justify-between items-end">
             <h4 className="font-label-md text-label-md text-on-surface font-semibold">数据编辑</h4>
@@ -353,6 +431,7 @@ export function DataDrawer({
             </table>
           </div>
         </div>
+        )}
 
         {supportsMarkers && (
           <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">

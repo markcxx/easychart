@@ -17,6 +17,7 @@ import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import { ChartData, ChartType, ChartOptions } from '@/types';
 import { DARK_CHART_THEMES, registerEchartsThemes } from '@/lib/echarts-themes';
+import { generateFunctionPlotData, normalizeFunctionPlot } from '@/lib/function-plot';
 
 echarts.use([
   BarChart,
@@ -103,6 +104,10 @@ function getTooltipOption(options: ChartOptions, isPie = false) {
     shadowBlur: 10,
     shadowColor: 'rgba(0, 0, 0, 0.1)',
   };
+}
+
+function shouldShowAxisLabels(options: ChartOptions) {
+  return options.showAxisLabels ?? options.showXAxis;
 }
 
 function getMarkerName(type: string, fallback: string) {
@@ -294,7 +299,7 @@ function getCategoryAxis(categories: string[], options: ChartOptions, isHorizont
   return {
     type: isHorizontal ? 'value' : 'category',
     data: isHorizontal ? undefined : categories,
-    axisLabel: { show: options.showXAxis },
+    axisLabel: { show: shouldShowAxisLabels(options) },
     axisTick: { show: options.showXAxis },
     axisLine: { show: options.showXAxis },
     splitLine: { show: isHorizontal && options.showYSplitLine, lineStyle: { type: options.ySplitLineType } },
@@ -305,7 +310,7 @@ function getValueAxis(options: ChartOptions, categories?: string[]) {
   return {
     type: categories ? 'category' : 'value',
     data: categories,
-    axisLabel: { show: options.showXAxis },
+    axisLabel: { show: shouldShowAxisLabels(options) },
     axisTick: { show: options.showXAxis },
     axisLine: { show: options.showXAxis },
     splitLine: { show: !categories && options.showYSplitLine, lineStyle: { type: options.ySplitLineType } },
@@ -391,9 +396,17 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
       xAxis: {
         type: 'category',
         splitLine: { show: false },
+        axisLabel: { show: shouldShowAxisLabels(options) },
+        axisTick: { show: options.showXAxis },
+        axisLine: { show: options.showXAxis },
         data: waterfallCategories,
       },
-      yAxis: { type: 'value' },
+      yAxis: {
+        type: 'value',
+        axisLabel: { show: shouldShowAxisLabels(options) },
+        axisTick: { show: options.showXAxis },
+        axisLine: { show: options.showXAxis },
+      },
       series: [
         {
           name: '占位',
@@ -507,6 +520,9 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
         {
           type: 'value',
           breaks: hasLargeGap ? breaks : undefined,
+          axisLabel: { show: shouldShowAxisLabels(options) },
+          axisTick: { show: options.showXAxis },
+          axisLine: { show: options.showXAxis },
           breakArea: hasLargeGap
             ? {
               itemStyle: { opacity: 1 },
@@ -554,18 +570,6 @@ function buildOfficialBarOption(data: ChartData, options: ChartOptions, isDarkTh
   };
 }
 
-function getFunctionPlotData() {
-  const result: number[][] = [];
-
-  for (let i = -200; i <= 200; i += 0.5) {
-    const x = i / 10;
-    const y = Math.sin(x) * Math.cos(x * 2 + 1) * Math.sin(x * 3 + 2) * 50;
-    result.push([Number(i.toFixed(1)), Number(y.toFixed(4))]);
-  }
-
-  return result;
-}
-
 function getSecondaryCategories(data: ChartData, categories: string[]) {
   if (data.secondaryCategories?.length === categories.length) {
     return data.secondaryCategories;
@@ -583,6 +587,8 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
   };
 
   if (options.subType === 'function-plot') {
+    const functionPlot = normalizeFunctionPlot(data.functionPlot);
+
     return {
       ...common,
       animation: false,
@@ -605,16 +611,22 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         bottom: 50,
       },
       xAxis: {
-        name: 'x',
-        minorTick: { show: true },
-        minorSplitLine: { show: true },
+        name: options.showXAxis ? 'x' : undefined,
+        axisLabel: { show: shouldShowAxisLabels(options) },
+        axisTick: { show: options.showXAxis },
+        axisLine: { show: options.showXAxis },
+        minorTick: { show: options.showXAxis },
+        minorSplitLine: { show: options.showXAxis },
       },
       yAxis: {
-        name: 'y',
-        min: -100,
-        max: 100,
-        minorTick: { show: true },
-        minorSplitLine: { show: true },
+        name: options.showXAxis ? 'y' : undefined,
+        min: functionPlot.yMin,
+        max: functionPlot.yMax,
+        axisLabel: { show: shouldShowAxisLabels(options) },
+        axisTick: { show: options.showXAxis },
+        axisLine: { show: options.showXAxis },
+        minorTick: { show: options.showXAxis },
+        minorSplitLine: { show: options.showXAxis },
       },
       dataZoom: [
         {
@@ -622,16 +634,16 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
           type: 'inside',
           filterMode: 'none',
           xAxisIndex: [0],
-          startValue: -20,
-          endValue: 20,
+          startValue: Math.max(functionPlot.xMin, -20),
+          endValue: Math.min(functionPlot.xMax, 20),
         },
         {
           show: true,
           type: 'inside',
           filterMode: 'none',
           yAxisIndex: [0],
-          startValue: -20,
-          endValue: 20,
+          startValue: Math.max(functionPlot.yMin, -20),
+          endValue: Math.min(functionPlot.yMax, 20),
         },
       ],
       series: [
@@ -641,7 +653,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
           showSymbol: false,
           clip: true,
           lineStyle: { width: options.barWidth / 10 },
-          data: getFunctionPlotData(),
+          data: generateFunctionPlotData(functionPlot),
         },
       ],
     };
@@ -681,7 +693,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         type: 'category',
         position: 'bottom',
         axisTick: { alignWithLabel: true, show: options.showXAxis },
-        axisLabel: { show: options.showXAxis, rotate: options.xLabelRotate },
+        axisLabel: { show: shouldShowAxisLabels(options), rotate: options.xLabelRotate },
         axisLine: {
           onZero: false,
           show: options.showXAxis,
@@ -698,7 +710,7 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
         type: 'category',
         position: 'top',
         axisTick: { alignWithLabel: true, show: options.showXAxis },
-        axisLabel: { show: options.showXAxis, rotate: options.xLabelRotate },
+        axisLabel: { show: shouldShowAxisLabels(options), rotate: options.xLabelRotate },
         axisLine: {
           onZero: false,
           show: options.showXAxis,
@@ -715,6 +727,9 @@ function buildSpecialLineOption(data: ChartData, options: ChartOptions, isDarkTh
     yAxis: [
       {
         type: 'value',
+        axisLabel: { show: shouldShowAxisLabels(options) },
+        axisTick: { show: options.showXAxis },
+        axisLine: { show: options.showXAxis },
         splitLine: {
           show: options.showYSplitLine,
           lineStyle: { type: options.ySplitLineType },
@@ -891,9 +906,10 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
         show: options.showXAxis,
         type: isHorizontal ? 'value' : 'category',
         data: isHorizontal ? undefined : data.categories,
-        axisLine: { show: false },
+        axisLine: { show: options.showXAxis },
         axisTick: { show: false },
         axisLabel: { 
+           show: shouldShowAxisLabels(options),
            color: isDarkTheme ? '#cbd5e1' : '#57657a', 
            fontFamily: 'Inter, sans-serif', 
            margin: 15,
@@ -909,7 +925,13 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
             show: options.showYSplitLine,
             lineStyle: { type: options.ySplitLineType, color: isDarkTheme ? '#334155' : '#e9e8e5' } 
         },
-        axisLabel: { color: isDarkTheme ? '#cbd5e1' : '#57657a', fontFamily: 'Inter, sans-serif' }
+        axisLabel: {
+          show: shouldShowAxisLabels(options),
+          color: isDarkTheme ? '#cbd5e1' : '#57657a',
+          fontFamily: 'Inter, sans-serif',
+        },
+        axisTick: { show: options.showXAxis },
+        axisLine: { show: options.showXAxis },
       },
       series: seriesData
     };
