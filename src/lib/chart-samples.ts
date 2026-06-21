@@ -1,4 +1,5 @@
 import { ChartData, ChartSubType, ChartType, ScatterPoint, SingleAxisScatterPoint } from '@/types';
+import { CHINA_CITY_POINTS, getMapRegions } from '@/lib/map-geodata';
 
 interface SampleChart {
   data: ChartData;
@@ -250,6 +251,33 @@ export function createScatterTemplateData(subType: ChartSubType = 'basic'): Char
   return createScatterDataFromPoints(BASIC_SCATTER_POINTS, '散点');
 }
 
+export function createMapTemplateData(subType: ChartSubType = 'china', region?: string): ChartData {
+  if (subType === 'china-cities') {
+    return {
+      categories: CHINA_CITY_POINTS.map((point) => point.name),
+      series: [{
+        name: '城市热度',
+        data: CHINA_CITY_POINTS.map((point) => point.value),
+      }],
+      mapPoints: CHINA_CITY_POINTS,
+      mapStyle: { region: 'china' },
+    };
+  }
+
+  const normalizedRegion = subType === 'province' ? region || 'guangdong' : subType;
+  const regions = getMapRegions(subType, normalizedRegion);
+  const baseValue = subType === 'world' ? 40 : subType === 'province' ? 25 : 50;
+
+  return {
+    categories: regions,
+    series: [{
+      name: subType === 'world' ? '国家数据' : subType === 'province' ? '城市数据' : '区域数据',
+      data: regions.map((_, index) => baseValue + ((index * 17) % 75)),
+    }],
+    mapStyle: { region: normalizedRegion },
+  };
+}
+
 export function createSampleChart(type: ChartType, seed = 20240620): SampleChart {
   const random = createRandom(seed + type.charCodeAt(0) * 997);
   const categoryPool = pick(random, CATEGORY_POOLS);
@@ -289,6 +317,14 @@ export function createSampleChart(type: ChartType, seed = 20240620): SampleChart
       title: '基础散点图',
       subtitle: '二维数值点分布样例',
       data: createScatterTemplateData('basic'),
+    };
+  }
+
+  if (type === 'map') {
+    return {
+      title: '中国地图',
+      subtitle: '区域数据分布样例',
+      data: createMapTemplateData('china'),
     };
   }
 

@@ -257,7 +257,7 @@ function firstDifferent(values: string[], excluded: Array<string | undefined>) {
 export function inferImportMapping(table: ImportedTable, chartType: ChartType, subType?: ChartSubType): ImportMapping {
   const numericColumns = getNumericColumns(table);
   const textColumns = table.columns.filter((column) => !numericColumns.includes(column));
-  const categoryColumn = findColumn(table.columns, [/日期|时间|类别|分类|名称|城市|产品|项目|月份|季度|date|time|name|category|label/i])
+  const categoryColumn = findColumn(table.columns, [/日期|时间|类别|分类|名称|城市|省份|省|国家|地区|区域|产品|项目|月份|季度|date|time|name|category|label|city|province|country|region|area/i])
     || textColumns[0]
     || table.columns[0];
 

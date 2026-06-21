@@ -3,11 +3,14 @@ import type { EChartsCoreOption } from 'echarts/core';
 import type { ChartData, ChartDataPointStyle, ChartOptions, ChartSeries, ChartSubType, ChartType, ScatterPoint } from '@/types';
 import { generateFunctionPlotData, normalizeFunctionPlot } from '@/lib/function-plot';
 import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT, SCATTER_CLUSTER_DIMENSION_INDEX } from '@/lib/scatter-clustering';
+import { CHINA_CITY_POINTS, getMapName } from '@/lib/map-geodata';
+import { getEchartsThemePalette } from '@/lib/echarts-themes';
 
 interface BuildChartOptionParams {
   data: ChartData;
   options: ChartOptions;
   chartType: ChartType;
+  theme?: string;
   isDarkTheme: boolean;
   hasTheme: boolean;
 }
@@ -1348,6 +1351,166 @@ function buildScatterOption(data: ChartData, options: ChartOptions, isDarkTheme:
   return buildBasicScatterOption(data, options, isDarkTheme, hasTheme);
 }
 
+function getMapData(data: ChartData) {
+  const series = data.series[0];
+  return data.categories.map((name, index) => ({
+    name,
+    value: series?.data[index] ?? 0,
+  }));
+}
+
+function getMapVisualMap(
+  data: ChartData,
+  options: ChartOptions,
+  isDarkTheme: boolean,
+  palette: string[],
+  seriesIndex?: number | number[]
+) {
+  const values = data.series[0]?.data || [];
+  const configuredMin = options.mapVisualMap?.min;
+  const configuredMax = options.mapVisualMap?.max;
+  const min = Number.isFinite(configuredMin) ? configuredMin : Math.min(0, ...values);
+  const max = Number.isFinite(configuredMax) ? configuredMax : Math.max(100, ...values);
+  const isPiecewise = options.mapVisualMap?.isPiecewise === true || options.mapVisualMap?.is_piecewise === true;
+
+  return {
+    show: options.showLegend,
+    type: isPiecewise ? 'piecewise' : 'continuous',
+    min,
+    max,
+    left: 16,
+    bottom: 18,
+    calculable: !isPiecewise,
+    splitNumber: options.mapVisualMap?.splitNumber || 5,
+    seriesIndex,
+    textStyle: {
+      color: isDarkTheme ? '#cbd5e1' : '#434655',
+      fontFamily: 'Inter, sans-serif',
+    },
+    inRange: {
+      color: [
+        colorWithAlpha(palette[0] || '#2563eb', isDarkTheme ? 0.35 : 0.18),
+        palette[2] || palette[0] || '#60a5fa',
+        palette[0] || '#2563eb',
+        palette[1] || '#1e40af',
+      ],
+    },
+    outOfRange: {
+      color: isDarkTheme ? '#1e293b' : '#e5e7eb',
+    },
+  };
+}
+
+function buildMapOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean, theme?: string): EChartsCoreOption {
+  const subType = options.subType;
+  const mapName = getMapName(subType, options.mapRegion || data.mapStyle?.region);
+  const mapData = getMapData(data);
+  const palette = getEchartsThemePalette(theme);
+  const mapItemStyle = {
+    areaColor: colorWithAlpha(palette[0] || '#2563eb', isDarkTheme ? 0.16 : 0.1),
+    borderColor: isDarkTheme ? colorWithAlpha(palette[1] || '#60a5fa', 0.65) : '#ffffff',
+    borderWidth: 1,
+  };
+  const emphasis = {
+    label: { color: isDarkTheme ? '#f8fafc' : '#111827' },
+    itemStyle: {
+      areaColor: colorWithAlpha(palette[1] || palette[0] || '#93c5fd', isDarkTheme ? 0.65 : 0.5),
+    },
+  };
+
+  if (subType === 'china-cities') {
+    const pointLookup = new Map((data.mapPoints?.length ? data.mapPoints : CHINA_CITY_POINTS).map((point) => [point.name, point]));
+    const cityData = data.categories.flatMap((name, index) => {
+      const point = pointLookup.get(name);
+      if (!point) return [];
+      return [{
+        name,
+        value: [...point.coord, data.series[0]?.data[index] ?? point.value],
+      }];
+    });
+
+    return {
+      ...getAnimationOption(options),
+      backgroundColor: options.backgroundColor || (hasTheme ? undefined : 'transparent'),
+      title: getTitleOption(options, isDarkTheme),
+      tooltip: options.showTooltip
+        ? {
+          trigger: 'item',
+          formatter: (params: { name?: string; value?: number[] | number }) => {
+            const value = Array.isArray(params.value) ? params.value[2] : params.value;
+            return `${params.name || ''}<br/>${value ?? '-'}`;
+          },
+        }
+        : undefined,
+      visualMap: getMapVisualMap(data, options, isDarkTheme, palette, 1),
+      geo: {
+        map: mapName,
+        roam: true,
+        zoom: 1.15,
+        label: {
+          show: options.showDataLabels,
+          color: isDarkTheme ? '#cbd5e1' : '#334155',
+          fontFamily: 'Inter, sans-serif',
+        },
+        itemStyle: mapItemStyle,
+        emphasis,
+      },
+      series: [
+        {
+          name: '中国地图',
+          type: 'map',
+          map: mapName,
+          geoIndex: 0,
+          data: [],
+          tooltip: { show: false },
+        },
+        {
+          name: data.series[0]?.name || '城市数据',
+          type: 'scatter',
+          coordinateSystem: 'geo',
+          symbolSize: (value: number[]) => Math.max(8, Math.min(34, Math.sqrt(Number(value[2] || 0)) * 2.2)),
+          itemStyle: {
+            color: palette[3] || palette[1] || '#ef4444',
+            borderColor: '#ffffff',
+            borderWidth: 1,
+          },
+          label: {
+            show: options.showDataLabels,
+            formatter: '{b}',
+            position: 'right',
+          },
+          data: cityData,
+        },
+      ],
+    };
+  }
+
+  return {
+    ...getAnimationOption(options),
+    backgroundColor: options.backgroundColor || (hasTheme ? undefined : 'transparent'),
+    title: getTitleOption(options, isDarkTheme),
+    tooltip: options.showTooltip ? { trigger: 'item' } : undefined,
+    visualMap: getMapVisualMap(data, options, isDarkTheme, palette, 0),
+    series: [
+      {
+        name: data.series[0]?.name || '地图数据',
+        type: 'map',
+        map: mapName,
+        roam: true,
+        zoom: subType === 'world' ? 1 : 1.12,
+        itemStyle: mapItemStyle,
+        emphasis,
+        label: {
+          show: options.showDataLabels,
+          color: isDarkTheme ? '#cbd5e1' : '#334155',
+          fontFamily: 'Inter, sans-serif',
+        },
+        data: mapData,
+      },
+    ],
+  };
+}
+
 function buildDefaultSeries(data: ChartData, options: ChartOptions, chartType: ChartType, hasTheme: boolean) {
   const isPie = chartType === 'pie';
   const isHorizontal = options.subType === 'horizontal' && chartType === 'bar';
@@ -1516,7 +1679,11 @@ function buildDefaultOption({
 }
 
 export function buildChartOption(params: BuildChartOptionParams): EChartsCoreOption {
-  const { data, options, chartType, isDarkTheme, hasTheme } = params;
+  const { data, options, chartType, theme, isDarkTheme, hasTheme } = params;
+
+  if (chartType === 'map') {
+    return buildMapOption(data, options, isDarkTheme, hasTheme, theme);
+  }
 
   if (chartType === 'scatter') {
     return buildScatterOption(data, options, isDarkTheme, hasTheme);

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
-import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
+import { BarChart, LineChart, MapChart, PieChart, ScatterChart } from 'echarts/charts';
 import {
   DataZoomComponent,
   DatasetComponent,
@@ -22,10 +22,12 @@ import type { ChartData, ChartOptions, ChartType } from '@/types';
 import { DARK_CHART_THEMES, registerEchartsThemes } from '@/lib/echarts-themes';
 import { buildChartOption } from '@/lib/chart-option-builders';
 import { clusterScatterPoints, SCATTER_CLUSTER_COUNT, SCATTER_CLUSTER_DIMENSION_INDEX } from '@/lib/scatter-clustering';
+import { registerBuiltinMaps } from '@/lib/map-geodata';
 
 echarts.use([
   BarChart,
   LineChart,
+  MapChart,
   PieChart,
   ScatterChart,
   DataZoomComponent,
@@ -44,6 +46,7 @@ echarts.use([
 ]);
 
 registerEchartsThemes(echarts);
+registerBuiltinMaps(echarts);
 
 type ClusteringTransformParam = {
   upstream: {
@@ -116,6 +119,7 @@ export function Chart({ id, className, isSidebarCollapsed, theme = 'default', da
       data,
       options,
       chartType,
+      theme,
       isDarkTheme,
       hasTheme: Boolean(validTheme),
     });

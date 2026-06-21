@@ -22,12 +22,12 @@ export function Sidebar({ isCollapsed, onToggle, activeChart, onChartSelect }: S
     { icon: LineChart, label: '折线图', type: 'line' },
     { icon: PieChart, label: '饼图', type: 'pie' },
     { icon: ScatterChart, label: '散点图', type: 'scatter' },
+    { icon: Map, label: '地图', type: 'map' },
   ];
 
   const navItems2 = [
     { icon: Radar, label: '雷达图' },
     { icon: Filter, label: '漏斗图' },
-    { icon: Map, label: '地图' },
     { icon: Grid, label: '热力图' },
     { icon: Share2, label: '关系图' },
     { icon: Waves, label: '桑基图' },

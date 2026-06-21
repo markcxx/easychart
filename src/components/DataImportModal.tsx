@@ -31,6 +31,7 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   line: '折线图',
   pie: '饼图',
   scatter: '散点图',
+  map: '地图',
 };
 
 function ColumnSelect({

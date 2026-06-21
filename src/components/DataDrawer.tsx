@@ -5,10 +5,12 @@ import { cn } from '@/lib/utils';
 import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2, Palette, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
+import { Slider } from '@/components/ui/Slider';
 import { DEFAULT_FUNCTION_PLOT, normalizeFunctionPlot } from '@/lib/function-plot';
 import { parseImportFile, type ImportedTable } from '@/lib/import-data';
+import { MAP_PROVINCES } from '@/lib/map-geodata';
 import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT } from '@/lib/scatter-clustering';
-import { ChartData, ChartDataPointStyle, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
+import { ChartData, ChartDataPointStyle, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartOptions, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
 import { DataImportModal } from './DataImportModal';
 
 interface DataDrawerProps {
@@ -16,6 +18,8 @@ interface DataDrawerProps {
   onClose: () => void;
   data: ChartData;
   onChange: (data: ChartData) => void;
+  options: ChartOptions;
+  onOptionsChange: (opts: ChartOptions) => void;
   chartType: ChartType;
   subType?: ChartSubType;
   defaultBarWidth: number;
@@ -91,6 +95,8 @@ export function DataDrawer({
   onClose,
   data,
   onChange,
+  options,
+  onOptionsChange,
   chartType,
   subType,
   defaultBarWidth,
@@ -129,6 +135,12 @@ export function DataDrawer({
   );
   const supportsGradientSeriesStyle = subType === 'gradient-stacked-area';
   const functionPlot = normalizeFunctionPlot(data.functionPlot);
+  const mapVisualMap = options.mapVisualMap || {
+    min: 0,
+    max: 120,
+    isPiecewise: false,
+    splitNumber: 5,
+  };
 
   const handleClose = () => {
     onClose();
@@ -189,6 +201,20 @@ export function DataDrawer({
     const newSeries = [...data.series];
     newSeries[sIdx] = { ...newSeries[sIdx], useCustomStyle };
     onChange({ ...data, series: newSeries });
+  };
+
+  const updateMapOption = <K extends keyof ChartOptions>(key: K, value: ChartOptions[K]) => {
+    onOptionsChange({ ...options, [key]: value });
+  };
+
+  const updateMapVisualMapOption = <K extends keyof ChartOptions['mapVisualMap']>(key: K, value: ChartOptions['mapVisualMap'][K]) => {
+    onOptionsChange({
+      ...options,
+      mapVisualMap: {
+        ...mapVisualMap,
+        [key]: value,
+      },
+    });
   };
 
   const updateSeriesStyle = (sIdx: number, key: SeriesStyleKey, value: string) => {
@@ -494,6 +520,67 @@ export function DataDrawer({
             </p>
           )}
         </div>
+
+        {chartType === 'map' && (
+          <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
+            <h4 className="font-label-md text-label-md text-on-surface font-semibold">地图映射</h4>
+            {subType === 'province' && (
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">省份区域</label>
+                <Select value={options.mapRegion || 'guangdong'} onValueChange={(value) => updateMapOption('mapRegion', value)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="选择省份" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[90]">
+                    {MAP_PROVINCES.map((province) => (
+                      <SelectItem key={province.value} value={province.value}>{province.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-md rounded-md border border-outline-variant/30 bg-surface-container-low px-sm py-sm">
+              <div className="text-label-md font-label-md text-on-surface font-medium">分段 VisualMap</div>
+              <Switch
+                checked={mapVisualMap.isPiecewise}
+                onCheckedChange={(value) => updateMapVisualMapOption('isPiecewise', value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-md">
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">最小值</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  value={mapVisualMap.min}
+                  onChange={(event) => updateMapVisualMapOption('min', Number(event.target.value))}
+                />
+              </div>
+              <div>
+                <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">最大值</label>
+                <input
+                  className="w-full p-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                  type="number"
+                  value={mapVisualMap.max}
+                  onChange={(event) => updateMapVisualMapOption('max', Number(event.target.value))}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-sm">
+                <label className="text-label-md font-label-md text-on-surface font-medium">分段数量</label>
+                <span className="text-body-md text-on-surface-variant font-code-sm">{mapVisualMap.splitNumber}</span>
+              </div>
+              <Slider
+                min={2}
+                max={8}
+                step={1}
+                value={[mapVisualMap.splitNumber]}
+                onValueChange={(value) => updateMapVisualMapOption('splitNumber', value[0])}
+              />
+            </div>
+          </div>
+        )}
 
         {isFunctionPlot && (
           <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">

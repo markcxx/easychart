@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, LayoutTemplate } from 'lucide-react';
 import { ChartType, ChartSubType, ChartOptions, ChartData } from '@/types';
-import { createSampleChart, createScatterTemplateData } from '@/lib/chart-samples';
+import { createMapTemplateData, createSampleChart, createScatterTemplateData } from '@/lib/chart-samples';
 import { Chart } from './Chart';
 
 interface Template {
@@ -146,6 +146,24 @@ const TEMPLATES: Template[] = [
   {
     id: 'single-axis', name: '单轴散点图', desc: '按日期分行展示小时分布', type: 'scatter',
     getOptions: { subType: 'single-axis', scatterSize: 14, showLegend: false, showGrid: false, showDataLabels: false }
+  },
+
+  // MAP CHARTS
+  {
+    id: 'china', name: '中国地图', desc: '按省级区域展示数值分布', type: 'map',
+    getOptions: { subType: 'china', showLegend: true, showTooltip: true, showGrid: false, showXAxis: false, showAxisLabels: false, mapRegion: 'china' }
+  },
+  {
+    id: 'province', name: '省区域地图', desc: '展示单省内城市区域数据', type: 'map',
+    getOptions: { subType: 'province', showLegend: true, showTooltip: true, showGrid: false, showXAxis: false, showAxisLabels: false, mapRegion: 'guangdong' }
+  },
+  {
+    id: 'china-cities', name: '中国地图（带城市）', desc: '地图底图叠加城市点位', type: 'map',
+    getOptions: { subType: 'china-cities', showLegend: true, showTooltip: true, showGrid: false, showXAxis: false, showAxisLabels: false, mapRegion: 'china' }
+  },
+  {
+    id: 'world', name: '世界地图', desc: '按国家区域展示数值分布', type: 'map',
+    getOptions: { subType: 'world', showLegend: true, showTooltip: true, showGrid: false, showXAxis: false, showAxisLabels: false, mapRegion: 'world' }
   }
 ];
 
@@ -196,6 +214,13 @@ const THUMBNAIL_BASE_OPTIONS: ChartOptions = {
   markPointSymbol: 'pin',
   markPointSymbolSize: 48,
   markPointColor: '#ef4444',
+  mapRegion: 'china',
+  mapVisualMap: {
+    min: 0,
+    max: 120,
+    isPiecewise: false,
+    splitNumber: 5,
+  },
   subType: 'basic',
 };
 
@@ -254,6 +279,10 @@ function getThumbnailData(chartType: ChartType, subType: ChartSubType, baseData:
     }
 
     return scatterData;
+  }
+
+  if (chartType === 'map') {
+    return createMapTemplateData(subType);
   }
 
   if (chartType === 'bar' && subType === 'broken-axis') {

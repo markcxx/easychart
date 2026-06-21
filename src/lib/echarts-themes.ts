@@ -37,7 +37,7 @@ const createTheme = (
   timeAxis: axisStyle(mutedColor, lineColor),
 });
 
-const THEMES = {
+export const THEMES = {
   dark: createTheme(['#4992ff', '#7cffb2', '#fddd60', '#ff6e76', '#58d9f9', '#05c091'], '#100c2a', '#f8fafc', '#cbd5e1', '#334155'),
   macarons: createTheme(['#2ec7c9', '#b6a2de', '#5ab1ef', '#ffb980', '#d87a80', '#8d98b3'], '#ffffff', '#293441', '#64748b', '#e2e8f0'),
   vintage: createTheme(['#d87c7c', '#919e8b', '#d7ab82', '#6e7074', '#61a0a8', '#efa18d'], '#fef8ef', '#333333', '#8a7660', '#e6d6bd'),
@@ -65,3 +65,13 @@ export function registerEchartsThemes(echarts: EChartsLike) {
 }
 
 export const DARK_CHART_THEMES = new Set(['dark', 'dark-blue', 'tech-blue']);
+
+export function getEchartsThemePalette(theme: string | undefined) {
+  const themeConfig = theme && theme !== 'default'
+    ? THEMES[theme as keyof typeof THEMES]
+    : undefined;
+
+  return Array.isArray(themeConfig?.color)
+    ? themeConfig.color as string[]
+    : ['#2563eb', '#60a5fa', '#93c5fd', '#bfdbfe', '#818cf8', '#a78bfa'];
+}

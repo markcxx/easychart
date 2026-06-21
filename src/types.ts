@@ -53,6 +53,16 @@ export interface ScatterStyle {
   singleAxisColors?: string[];
 }
 
+export interface MapPoint {
+  name: string;
+  value: number;
+  coord: [number, number];
+}
+
+export interface MapStyle {
+  region?: string;
+}
+
 export interface ChartData {
   categories: string[];
   secondaryCategories?: string[];
@@ -66,9 +76,11 @@ export interface ChartData {
   scatterData?: ScatterPoint[];
   singleAxisScatterData?: SingleAxisScatterData;
   scatterStyle?: ScatterStyle;
+  mapPoints?: MapPoint[];
+  mapStyle?: MapStyle;
 }
 
-export type ChartType = 'bar' | 'line' | 'pie' | 'scatter';
+export type ChartType = 'bar' | 'line' | 'pie' | 'scatter' | 'map';
 export type ChartSubType = 
   | 'basic' 
   | 'stacked' 
@@ -97,7 +109,19 @@ export type ChartSubType =
   | 'nightingale-basic'
   | 'nested-donut'
   | 'clustered'
-  | 'single-axis';
+  | 'single-axis'
+  | 'china'
+  | 'province'
+  | 'china-cities'
+  | 'world';
+
+export interface VisualMapOpts {
+  min: number;
+  max: number;
+  isPiecewise: boolean;
+  is_piecewise?: boolean;
+  splitNumber: number;
+}
 
 export interface ChartOptions {
   // Canvas
@@ -170,6 +194,10 @@ export interface ChartOptions {
   markPointSymbol: ChartSymbolType;
   markPointSymbolSize: number;
   markPointColor: string;
+
+  // Map
+  mapRegion: string;
+  mapVisualMap: VisualMapOpts;
 
   // Global modifiers
   subType?: ChartSubType;

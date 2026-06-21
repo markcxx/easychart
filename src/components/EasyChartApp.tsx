@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { getInstanceByDom } from 'echarts/core';
 import { Toaster, toast } from 'react-hot-toast';
 import { cn } from '@/lib/utils';
-import { createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
+import { createMapTemplateData, createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
 import { DEFAULT_FUNCTION_PLOT } from '@/lib/function-plot';
 import {
   createProjectSnapshotKey,
@@ -79,6 +79,13 @@ const BASE_OPTIONS: ChartOptions = {
   markPointSymbol: 'pin',
   markPointSymbolSize: 48,
   markPointColor: '#ef4444',
+  mapRegion: 'china',
+  mapVisualMap: {
+    min: 0,
+    max: 120,
+    isPiecewise: false,
+    splitNumber: 5,
+  },
   subType: 'basic'
 };
 
@@ -87,11 +94,13 @@ function createDefaultOptions(type: ChartType, sample = createSampleChart(type))
     ...BASE_OPTIONS,
     title: sample.title,
     subtitle: sample.subtitle,
-    subType: 'basic',
-    showGrid: type !== 'pie',
-    showXAxis: type !== 'pie',
-    showAxisLabels: type !== 'pie',
+    subType: type === 'map' ? 'china' : 'basic',
+    showGrid: type !== 'pie' && type !== 'map',
+    showXAxis: type !== 'pie' && type !== 'map',
+    showAxisLabels: type !== 'pie' && type !== 'map',
     labelPosition: type === 'pie' ? 'outside' : 'top',
+    mapRegion: type === 'map' ? 'china' : BASE_OPTIONS.mapRegion,
+    mapVisualMap: { ...BASE_OPTIONS.mapVisualMap },
     barWidth: type === 'bar' ? 20 : BASE_OPTIONS.barWidth,
     lineWidth: 2,
     scatterSize: 14,
@@ -475,6 +484,20 @@ export function EasyChartApp() {
     requestActionWithUnsavedCheck({ type: 'projects' });
   };
 
+  const handleChartOptionsChange = (nextOptions: ChartOptions) => {
+    const previousRegion = chartOptions.mapRegion;
+    setChartOptions(nextOptions);
+
+    if (
+      chartType === 'map' &&
+      nextOptions.subType === 'province' &&
+      nextOptions.mapRegion &&
+      nextOptions.mapRegion !== previousRegion
+    ) {
+      setChartData(createMapTemplateData('province', nextOptions.mapRegion));
+    }
+  };
+
   const handleDownloadImage = () => {
     showToast('正在生成图片，请稍候...');
     setTimeout(() => {
@@ -520,7 +543,8 @@ export function EasyChartApp() {
     'bar': '柱状图',
     'line': '折线图',
     'pie': '饼图',
-    'scatter': '散点图'
+    'scatter': '散点图',
+    'map': '地图'
   }[chartType];
 
   return (
@@ -674,6 +698,8 @@ export function EasyChartApp() {
         onClose={() => setActiveDrawer(null)} 
         data={chartData}
         onChange={setChartData}
+        options={chartOptions}
+        onOptionsChange={handleChartOptionsChange}
         chartType={chartType}
         subType={chartOptions.subType}
         defaultBarWidth={chartOptions.barWidth}
@@ -689,7 +715,7 @@ export function EasyChartApp() {
         chartTheme={chartTheme}
         onThemeChange={setChartTheme}
         options={chartOptions}
-        onOptionsChange={setChartOptions}
+        onOptionsChange={handleChartOptionsChange}
         chartType={chartType}
       />
       
@@ -711,6 +737,9 @@ export function EasyChartApp() {
           }
           if (chartType === 'scatter') {
             setChartData(createScatterTemplateData(subType));
+          }
+          if (chartType === 'map') {
+            setChartData(createMapTemplateData(subType));
           }
           setIsTemplateModalOpen(false);
           showSuccessToast('已切换图表模板！');
