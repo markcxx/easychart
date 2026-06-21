@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getInstanceByDom } from 'echarts/core';
+import { Toaster, toast } from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
 import { DEFAULT_FUNCTION_PLOT } from '@/lib/function-plot';
@@ -148,10 +149,12 @@ function withFunctionPlot(data: ChartData): ChartData {
 }
 
 function snapshotFromProject(project: SavedChartProject): ChartProjectSnapshot {
+  const title = project.name || project.chartTitle || '未命名项目';
+
   return {
     chartType: project.chartType,
     chartTheme: project.chartTheme,
-    chartTitle: project.chartTitle,
+    chartTitle: title,
     chartData: project.chartData,
     chartOptions: project.chartOptions,
   };
@@ -279,7 +282,6 @@ export function EasyChartApp() {
   const [chartOptions, setChartOptions] = useState<ChartOptions>(DEFAULT_OPTIONS);
   const [chartTitle, setChartTitle] = useState('未命名图表_01');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('未命名图表_01');
   const [lastSavedSnapshotKey, setLastSavedSnapshotKey] = useState('');
@@ -300,8 +302,15 @@ export function EasyChartApp() {
   const hasUnsavedChanges = Boolean(lastSavedSnapshotKey) && currentSnapshotKey !== lastSavedSnapshotKey;
 
   const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    toast(msg);
+  };
+
+  const showSuccessToast = (msg: string) => {
+    toast.success(msg);
+  };
+
+  const showErrorToast = (msg: string) => {
+    toast.error(msg);
   };
 
   const toggleDrawer = (drawer: DrawerType) => {
@@ -330,6 +339,7 @@ export function EasyChartApp() {
     setChartOptions(options);
     setChartTitle(title);
     setProjectName(title);
+    setSaveName(title);
     setCurrentProjectId(null);
     markCleanSnapshot(snapshot);
   };
@@ -361,20 +371,21 @@ export function EasyChartApp() {
       const project = getLocalProject(projectId);
       if (project) {
         const snapshot = snapshotFromProject(project);
+        const title = project.name || project.chartTitle || '未命名项目';
         setChartType(project.chartType);
         setChartTheme(project.chartTheme);
-        setChartTitle(project.chartTitle || project.name);
+        setChartTitle(title);
         setChartData(project.chartData);
         setChartOptions(project.chartOptions);
         setCurrentProjectId(project.id);
-        setProjectName(project.name);
-        setSaveName(project.name);
+        setProjectName(title);
+        setSaveName(title);
         markCleanSnapshot(snapshot);
-        showToast('已打开项目');
+        showSuccessToast('已打开项目');
         return;
       }
 
-      showToast('没有找到这个项目');
+      showErrorToast('没有找到这个项目');
     }
 
     const sample = createSampleChart('bar', createSampleSeed());
@@ -390,8 +401,10 @@ export function EasyChartApp() {
 
     setChartData(sample.data);
     setChartOptions(options);
+    setChartTitle(title);
     setProjectName(title);
     setSaveName(title);
+    setCurrentProjectId(null);
     markCleanSnapshot(snapshot);
   }, []);
 
@@ -408,13 +421,13 @@ export function EasyChartApp() {
 
   const openSaveDialog = () => {
     setSaveError(null);
-    setSaveName(projectName || chartTitle || '未命名项目');
+    setSaveName(chartTitle || projectName || '未命名项目');
     setIsSaveDialogOpen(true);
   };
 
-  const saveCurrentProject = () => {
-    const normalizedName = saveName.trim() || chartTitle.trim() || '未命名项目';
-    const normalizedTitle = chartTitle.trim() || normalizedName;
+  const saveCurrentProject = (name = saveName, showErrorInDialog = true) => {
+    const normalizedName = name.trim() || chartTitle.trim() || '未命名项目';
+    const normalizedTitle = normalizedName;
     const snapshot: ChartProjectSnapshot = {
       ...currentSnapshot,
       chartTitle: normalizedTitle,
@@ -429,12 +442,28 @@ export function EasyChartApp() {
       markCleanSnapshot(snapshotFromProject(savedProject));
       setIsSaveDialogOpen(false);
       setSaveError(null);
-      showToast('项目已保存');
+      showSuccessToast('项目已保存');
       runPendingAction(pendingAction);
       setPendingAction(null);
+      return true;
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : '保存失败，存储空间可能不足。');
+      const message = error instanceof Error ? error.message : '保存失败，存储空间可能不足。';
+      if (showErrorInDialog) {
+        setSaveError(message);
+      } else {
+        showErrorToast(message);
+      }
+      return false;
     }
+  };
+
+  const handleSaveProject = () => {
+    if (currentProjectId) {
+      saveCurrentProject(chartTitle || projectName || saveName, false);
+      return;
+    }
+
+    openSaveDialog();
   };
 
   const handleChartSelect = (type: ChartType) => {
@@ -462,7 +491,7 @@ export function EasyChartApp() {
       a.href = url;
       a.download = `${chartTitle}.png`;
       a.click();
-      showToast('图片下载成功！');
+      showSuccessToast('图片下载成功！');
     }, 500);
   };
 
@@ -483,7 +512,7 @@ export function EasyChartApp() {
       a.href = url;
       a.download = `${chartTitle}_config.json`;
       a.click();
-      showToast('代码导出成功！');
+      showSuccessToast('代码导出成功！');
     }, 500);
   };
 
@@ -522,7 +551,11 @@ export function EasyChartApp() {
                     autoFocus
                     className="text-on-surface text-body-md font-body-md bg-surface-variant/50 px-sm py-1 rounded outline-none w-48 focus:ring-1 focus:ring-primary"
                     value={chartTitle}
-                    onChange={(e) => setChartTitle(e.target.value)}
+                    onChange={(e) => {
+                      setChartTitle(e.target.value);
+                      setProjectName(e.target.value);
+                      setSaveName(e.target.value);
+                    }}
                     onBlur={() => setIsEditingTitle(false)}
                     onKeyDown={(e) => e.key === 'Enter' && setIsEditingTitle(false)}
                   />
@@ -551,7 +584,7 @@ export function EasyChartApp() {
               <div className="flex items-center gap-xs">
                 <button 
                   className="flex items-center gap-xs px-md py-sm hover:bg-surface-variant text-on-surface rounded-md transition-colors font-label-md text-label-md cursor-pointer"
-                  onClick={openSaveDialog}
+                  onClick={handleSaveProject}
                 >
                   <Save className="w-[16px] h-[16px]" />
                   保存项目
@@ -578,7 +611,7 @@ export function EasyChartApp() {
                   title="选择预设图表模板"
                 >
                   <LayoutTemplate className="w-[16px] h-[16px]" />
-                  预览或切换模板
+                  模板
                 </button>
                 <div className="w-px h-4 bg-outline-variant/50 mx-xs"></div>
                 <button 
@@ -680,7 +713,7 @@ export function EasyChartApp() {
             setChartData(createScatterTemplateData(subType));
           }
           setIsTemplateModalOpen(false);
-          showToast('已切换图表模板！');
+          showSuccessToast('已切换图表模板！');
         }}
       />
 
@@ -698,7 +731,7 @@ export function EasyChartApp() {
         }}
         onSave={() => {
           setIsUnsavedDialogOpen(false);
-          openSaveDialog();
+          handleSaveProject();
         }}
       />
 
@@ -714,20 +747,10 @@ export function EasyChartApp() {
             setPendingAction(null);
           }
         }}
-        onConfirm={saveCurrentProject}
+        onConfirm={() => saveCurrentProject()}
       />
       
-      {toastMessage && (
-        <div className="fixed top-20 right-6 z-[140] w-[min(360px,calc(100vw-32px))] rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-md py-sm shadow-2xl animate-in fade-in slide-in-from-top-3">
-          <div className="flex items-start gap-sm">
-            <div className="mt-[6px] h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_0_4px_rgba(0,74,198,0.12)]" />
-            <div className="min-w-0">
-              <div className="text-label-md font-label-md font-semibold text-on-surface">提示</div>
-              <div className="mt-xs text-body-md font-body-md text-on-surface-variant">{toastMessage}</div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Toaster />
     </div>
   );
 }
