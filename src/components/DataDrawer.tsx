@@ -6,6 +6,7 @@ import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2 } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { DEFAULT_FUNCTION_PLOT, normalizeFunctionPlot } from '@/lib/function-plot';
+import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT } from '@/lib/scatter-clustering';
 import { ChartData, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
 
 interface DataDrawerProps {
@@ -39,6 +40,7 @@ const MARKER_TYPE_OPTIONS: { value: ChartMarkerType; label: string }[] = [
 
 type SeriesStyleKey = 'color' | 'areaColor' | 'areaGradientStart' | 'areaGradientEnd';
 type SeriesNumericStyleKey = 'barWidth' | 'lineWidth';
+type ScatterColorStyleKey = 'clusterColors' | 'singleAxisColors';
 
 const FALLBACK_SERIES_COLORS = ['#2563eb', '#ef4444', '#60a5fa', '#a78bfa', '#22c55e', '#f59e0b'];
 
@@ -76,6 +78,12 @@ export function DataDrawer({
   const supportsLineSeriesStyle = chartType === 'line' && !isFunctionPlot;
   const supportsBarSeriesStyle = chartType === 'bar' && !isFunctionPlot;
   const supportsSeriesStyle = supportsLineSeriesStyle || supportsBarSeriesStyle;
+  const isScatter = chartType === 'scatter';
+  const supportsBasicScatterStyle = isScatter && subType !== 'clustered' && subType !== 'single-axis';
+  const supportsClusteredScatterStyle = isScatter && subType === 'clustered';
+  const supportsSingleAxisScatterStyle = isScatter && subType === 'single-axis';
+  const supportsScatterColorStyle = supportsBasicScatterStyle || supportsClusteredScatterStyle || supportsSingleAxisScatterStyle;
+  const singleAxisColorLabels = data.singleAxisScatterData?.days || data.categories;
   const supportsAreaSeriesStyle = supportsLineSeriesStyle && (
     subType === 'area' ||
     subType === 'stacked-area' ||
@@ -135,6 +143,19 @@ export function DataDrawer({
       [key]: Number.isFinite(value) && value > 0 ? value : undefined,
     };
     onChange({ ...data, series: newSeries });
+  };
+
+  const updateScatterColorStyle = (key: ScatterColorStyleKey, index: number, value: string) => {
+    const colors = [...(data.scatterStyle?.[key] || [])];
+    colors[index] = value.trim();
+
+    onChange({
+      ...data,
+      scatterStyle: {
+        ...data.scatterStyle,
+        [key]: colors,
+      },
+    });
   };
 
   const updateDataPoint = (sIdx: number, cIdx: number, val: string) => {
@@ -630,6 +651,115 @@ export function DataDrawer({
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {supportsScatterColorStyle && (
+          <div className="flex flex-col gap-sm">
+            <h4 className="font-label-md text-label-md text-on-surface font-semibold">散点颜色</h4>
+            <div className="border border-outline-variant/50 rounded-md overflow-hidden shadow-sm">
+              {supportsBasicScatterStyle && data.series[0] && (() => {
+                const series = data.series[0];
+                const fallbackColor = getFallbackSeriesColor(0);
+                const customStyleEnabled = series.useCustomStyle === true;
+
+                return (
+                  <div className="grid grid-cols-[minmax(120px,1fr)_120px_minmax(190px,auto)] items-center border-b border-outline-variant/30 bg-surface-container-lowest">
+                    <div className="py-xs px-sm border-r border-outline-variant/30 text-on-surface font-medium">
+                      {series.name || '散点'}
+                    </div>
+                    <div className="py-xs px-sm border-r border-outline-variant/30">
+                      <Switch
+                        checked={customStyleEnabled}
+                        onCheckedChange={(checked) => updateSeriesCustomStyle(0, checked)}
+                      />
+                    </div>
+                    <div className="py-xs px-sm">
+                      <div className="flex items-center gap-xs">
+                        <input
+                          className={cn(
+                            "h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer",
+                            !customStyleEnabled && "opacity-50 cursor-not-allowed"
+                          )}
+                          type="color"
+                          value={getColorInputValue(series.color, fallbackColor)}
+                          disabled={!customStyleEnabled}
+                          onChange={(event) => updateSeriesStyle(0, 'color', event.target.value)}
+                        />
+                        <input
+                          className={cn(
+                            "min-w-0 w-32 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary",
+                            !customStyleEnabled && "opacity-60 cursor-not-allowed"
+                          )}
+                          value={series.color || ''}
+                          disabled={!customStyleEnabled}
+                          onChange={(event) => updateSeriesStyle(0, 'color', event.target.value)}
+                          placeholder="跟随主题"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {supportsClusteredScatterStyle && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 bg-surface-container-lowest">
+                  {Array.from({ length: SCATTER_CLUSTER_COUNT }, (_, index) => {
+                    const fallbackColor = SCATTER_CLUSTER_COLORS[index % SCATTER_CLUSTER_COLORS.length];
+                    const color = data.scatterStyle?.clusterColors?.[index] || '';
+
+                    return (
+                      <div key={index} className="flex items-center justify-between gap-sm py-xs px-sm border-b border-r border-outline-variant/30">
+                        <span className="text-body-md text-on-surface font-medium">cluster {index}</span>
+                        <div className="flex items-center gap-xs">
+                          <input
+                            className="h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer"
+                            type="color"
+                            value={getColorInputValue(color, fallbackColor)}
+                            onChange={(event) => updateScatterColorStyle('clusterColors', index, event.target.value)}
+                          />
+                          <input
+                            className="min-w-0 w-28 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            value={color}
+                            onChange={(event) => updateScatterColorStyle('clusterColors', index, event.target.value)}
+                            placeholder={fallbackColor}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {supportsSingleAxisScatterStyle && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 bg-surface-container-lowest">
+                  {singleAxisColorLabels.map((label, index) => {
+                    const fallbackColor = SCATTER_CLUSTER_COLORS[index % SCATTER_CLUSTER_COLORS.length];
+                    const color = data.scatterStyle?.singleAxisColors?.[index] || '';
+
+                    return (
+                      <div key={`${label}-${index}`} className="flex items-center justify-between gap-sm py-xs px-sm border-b border-r border-outline-variant/30">
+                        <span className="text-body-md text-on-surface font-medium truncate" title={label}>{label}</span>
+                        <div className="flex items-center gap-xs">
+                          <input
+                            className="h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer"
+                            type="color"
+                            value={getColorInputValue(color, fallbackColor)}
+                            onChange={(event) => updateScatterColorStyle('singleAxisColors', index, event.target.value)}
+                          />
+                          <input
+                            className="min-w-0 w-28 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            value={color}
+                            onChange={(event) => updateScatterColorStyle('singleAxisColors', index, event.target.value)}
+                            placeholder={fallbackColor}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

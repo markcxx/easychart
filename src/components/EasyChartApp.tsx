@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getInstanceByDom } from 'echarts/core';
 import { cn } from '@/lib/utils';
-import { createSampleChart, createSampleSeed } from '@/lib/chart-samples';
+import { createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
 import { DEFAULT_FUNCTION_PLOT } from '@/lib/function-plot';
 import { Database, Palette, Save, Download, Code, Edit2, LayoutTemplate } from 'lucide-react';
 import { TopNavBar } from './TopNavBar';
@@ -396,6 +396,9 @@ export function EasyChartApp() {
           }
           if (chartType === 'line' && subType === 'function-plot') {
             setChartData(prev => withFunctionPlot(prev));
+          }
+          if (chartType === 'scatter') {
+            setChartData(createScatterTemplateData(subType));
           }
           setIsTemplateModalOpen(false);
           showToast('已切换图表模板！');

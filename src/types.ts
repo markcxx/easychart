@@ -33,6 +33,20 @@ export interface ChartFunctionPlot {
   yMax: number;
 }
 
+export type ScatterPoint = [number, number];
+export type SingleAxisScatterPoint = [number, number, number];
+
+export interface SingleAxisScatterData {
+  hours: string[];
+  days: string[];
+  data: SingleAxisScatterPoint[];
+}
+
+export interface ScatterStyle {
+  clusterColors?: string[];
+  singleAxisColors?: string[];
+}
+
 export interface ChartData {
   categories: string[];
   secondaryCategories?: string[];
@@ -40,6 +54,9 @@ export interface ChartData {
   markLines?: ChartMarker[];
   markPoints?: ChartMarker[];
   functionPlot?: ChartFunctionPlot;
+  scatterData?: ScatterPoint[];
+  singleAxisScatterData?: SingleAxisScatterData;
+  scatterStyle?: ScatterStyle;
 }
 
 export type ChartType = 'bar' | 'line' | 'pie' | 'scatter';
@@ -69,7 +86,9 @@ export type ChartSubType =
   | 'gap-donut'
   | 'nightingale'
   | 'nightingale-basic'
-  | 'nested-donut';
+  | 'nested-donut'
+  | 'clustered'
+  | 'single-axis';
 
 export interface ChartOptions {
   // Canvas

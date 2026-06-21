@@ -5,19 +5,23 @@ import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart, ScatterChart } from 'echarts/charts';
 import {
   DataZoomComponent,
+  DatasetComponent,
   GridComponent,
   LegendComponent,
   MarkLineComponent,
   MarkPointComponent,
   PolarComponent,
+  SingleAxisComponent,
   TitleComponent,
   TooltipComponent,
+  VisualMapComponent,
 } from 'echarts/components';
 import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { ChartData, ChartOptions, ChartType } from '@/types';
 import { DARK_CHART_THEMES, registerEchartsThemes } from '@/lib/echarts-themes';
 import { buildChartOption } from '@/lib/chart-option-builders';
+import { clusterScatterPoints, SCATTER_CLUSTER_COUNT, SCATTER_CLUSTER_DIMENSION_INDEX } from '@/lib/scatter-clustering';
 
 echarts.use([
   BarChart,
@@ -25,18 +29,61 @@ echarts.use([
   PieChart,
   ScatterChart,
   DataZoomComponent,
+  DatasetComponent,
   GridComponent,
   LegendComponent,
   MarkLineComponent,
   MarkPointComponent,
   PolarComponent,
+  SingleAxisComponent,
   TitleComponent,
   TooltipComponent,
+  VisualMapComponent,
   AxisBreak,
   CanvasRenderer,
 ]);
 
 registerEchartsThemes(echarts);
+
+type ClusteringTransformParam = {
+  upstream: {
+    count: () => number;
+    retrieveValue: (dataIndex: number, dimIndex: number) => unknown;
+  };
+  config?: {
+    clusterCount?: number;
+    outputClusterIndexDimension?: number;
+  };
+};
+
+const clusteringTransformKey = '__easychartClusteringTransformRegistered';
+const globalScope = globalThis as typeof globalThis & Record<string, boolean | undefined>;
+
+if (!globalScope[clusteringTransformKey]) {
+  echarts.registerTransform({
+    type: 'ecStat:clustering',
+    transform: (param: ClusteringTransformParam) => {
+      const clusterCount = param.config?.clusterCount ?? SCATTER_CLUSTER_COUNT;
+      const clusterDimension = param.config?.outputClusterIndexDimension ?? SCATTER_CLUSTER_DIMENSION_INDEX;
+      const points = Array.from({ length: param.upstream.count() }, (_, index) => {
+        const x = Number(param.upstream.retrieveValue(index, 0));
+        const y = Number(param.upstream.retrieveValue(index, 1));
+        return [x, y] as [number, number];
+      }).filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+      const clusteredPoints = clusterScatterPoints(points, clusterCount).map((point) => {
+        const row: number[] = [point[0], point[1]];
+        row[clusterDimension] = point[2];
+        return row;
+      });
+
+      return {
+        data: clusteredPoints,
+        dimensions: ['x', 'y', 'cluster'],
+      };
+    },
+  } as Parameters<typeof echarts.registerTransform>[0]);
+  globalScope[clusteringTransformKey] = true;
+}
 
 interface ChartProps {
   id?: string;

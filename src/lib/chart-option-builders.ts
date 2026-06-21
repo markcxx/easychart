@@ -1,7 +1,8 @@
 import * as echarts from 'echarts/core';
 import type { EChartsCoreOption } from 'echarts/core';
-import type { ChartData, ChartOptions, ChartSeries, ChartSubType, ChartType } from '@/types';
+import type { ChartData, ChartOptions, ChartSeries, ChartSubType, ChartType, ScatterPoint } from '@/types';
 import { generateFunctionPlotData, normalizeFunctionPlot } from '@/lib/function-plot';
+import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT, SCATTER_CLUSTER_DIMENSION_INDEX } from '@/lib/scatter-clustering';
 
 interface BuildChartOptionParams {
   data: ChartData;
@@ -1008,6 +1009,281 @@ function buildPieSeries(data: ChartData, options: ChartOptions) {
   }];
 }
 
+function isFiniteScatterPoint(point: ScatterPoint) {
+  return Number.isFinite(point[0]) && Number.isFinite(point[1]);
+}
+
+function getScatterPoints(data: ChartData): ScatterPoint[] {
+  if (data.scatterData?.length) {
+    return data.scatterData.filter(isFiniteScatterPoint);
+  }
+
+  const xSeries = data.series[0]?.data || [];
+  const ySeries = data.series[1]?.data || data.series[0]?.data || [];
+  const pointCount = Math.max(data.categories.length, xSeries.length, ySeries.length);
+
+  return Array.from({ length: pointCount }, (_, index): ScatterPoint => [
+    Number(xSeries[index] ?? index + 1),
+    Number(ySeries[index] ?? 0),
+  ]).filter(isFiniteScatterPoint);
+}
+
+function getScatterTooltipOption(options: ChartOptions) {
+  if (!options.showTooltip) return undefined;
+
+  return {
+    trigger: 'item',
+    position: 'top',
+    backgroundColor: `rgba(255, 255, 255, ${options.tooltipAlpha})`,
+    borderColor: '#e3e2e0',
+    borderWidth: 1,
+    textStyle: { color: '#1a1c1a', fontFamily: 'Inter, sans-serif' },
+    padding: [10, 15],
+    borderRadius: 8,
+    shadowBlur: 10,
+    shadowColor: 'rgba(0, 0, 0, 0.1)',
+  };
+}
+
+function getScatterAxis(options: ChartOptions, isDarkTheme: boolean, splitLine = true) {
+  return {
+    type: 'value',
+    axisLabel: {
+      show: shouldShowAxisLabels(options),
+      color: isDarkTheme ? '#cbd5e1' : '#57657a',
+      fontFamily: 'Inter, sans-serif',
+    },
+    axisTick: { show: options.showXAxis },
+    axisLine: { show: options.showXAxis },
+    splitLine: {
+      show: splitLine && shouldShowSplitLine(options),
+      lineStyle: { type: options.ySplitLineType, color: isDarkTheme ? '#334155' : '#e9e8e5' },
+    },
+  };
+}
+
+function getScatterGrid(options: ChartOptions, left: string | number = '8%') {
+  return {
+    show: options.showGrid,
+    left,
+    right: '6%',
+    top: options.showTitle ? 90 : 32,
+    bottom: options.showXAxis ? 48 : 28,
+    containLabel: true,
+    borderColor: '#e9e8e5',
+  };
+}
+
+function mergeScatterColors(colors: string[] | undefined, count: number) {
+  return Array.from({ length: count }, (_, index) => (
+    colors?.[index]?.trim() || SCATTER_CLUSTER_COLORS[index % SCATTER_CLUSTER_COLORS.length]
+  ));
+}
+
+function buildBasicScatterOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean): EChartsCoreOption {
+  const series = data.series[0];
+  const itemStyle = hasCustomSeriesStyle(series) && series?.color ? { color: series.color } : undefined;
+  const seriesName = series?.name || '散点';
+
+  return {
+    ...getAnimationOption(options),
+    backgroundColor: options.backgroundColor || (hasTheme ? undefined : 'transparent'),
+    color: hasTheme ? undefined : ['#2563eb'],
+    title: getTitleOption(options, isDarkTheme),
+    tooltip: getScatterTooltipOption(options),
+    legend: options.showLegend
+      ? {
+        data: [seriesName],
+        bottom: 0,
+        left: 'center',
+        textStyle: { color: isDarkTheme ? '#cbd5e1' : '#434655', fontFamily: 'Inter, sans-serif', fontSize: 13 },
+      }
+      : undefined,
+    grid: getScatterGrid(options),
+    xAxis: getScatterAxis(options, isDarkTheme),
+    yAxis: getScatterAxis(options, isDarkTheme),
+    series: [
+      {
+        name: seriesName,
+        type: 'scatter',
+        symbolSize: options.scatterSize,
+        data: getScatterPoints(data),
+        itemStyle,
+        label: getLabelOption(options, 'top'),
+      },
+    ],
+  };
+}
+
+function buildClusteredScatterOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean): EChartsCoreOption {
+  const points = getScatterPoints(data);
+  const clusterColors = mergeScatterColors(data.scatterStyle?.clusterColors, SCATTER_CLUSTER_COUNT);
+  const pieces = Array.from({ length: SCATTER_CLUSTER_COUNT }, (_, index) => ({
+    value: index,
+    label: `cluster ${index}`,
+    color: clusterColors[index],
+  }));
+
+  return {
+    ...getAnimationOption(options),
+    backgroundColor: options.backgroundColor || (hasTheme ? undefined : 'transparent'),
+    title: getTitleOption(options, isDarkTheme),
+    dataset: [
+      { source: points },
+      {
+        transform: {
+          type: 'ecStat:clustering',
+          config: {
+            clusterCount: SCATTER_CLUSTER_COUNT,
+            outputType: 'single',
+            outputClusterIndexDimension: SCATTER_CLUSTER_DIMENSION_INDEX,
+          },
+        },
+      },
+    ],
+    tooltip: options.showTooltip ? { position: 'top' } : undefined,
+    visualMap: {
+      show: options.showLegend,
+      type: 'piecewise',
+      top: 'middle',
+      min: 0,
+      max: SCATTER_CLUSTER_COUNT,
+      left: 10,
+      selectedMode: 'multiple',
+      splitNumber: SCATTER_CLUSTER_COUNT,
+      dimension: SCATTER_CLUSTER_DIMENSION_INDEX,
+      pieces,
+      inRange: {
+        color: clusterColors,
+      },
+      outOfRange: {
+        opacity: 0,
+      },
+      textStyle: {
+        color: isDarkTheme ? '#cbd5e1' : '#434655',
+        fontFamily: 'Inter, sans-serif',
+      },
+    },
+    grid: getScatterGrid(options, 120),
+    xAxis: getScatterAxis(options, isDarkTheme),
+    yAxis: getScatterAxis(options, isDarkTheme),
+    series: {
+      type: 'scatter',
+      encode: { tooltip: [0, 1] },
+      symbolSize: options.scatterSize,
+      itemStyle: {
+        borderColor: '#555',
+      },
+      datasetIndex: 1,
+    },
+  };
+}
+
+function getDefaultSingleAxisData(data: ChartData) {
+  if (data.singleAxisScatterData) return data.singleAxisScatterData;
+
+  const hours = data.categories.length ? data.categories : ['0', '1', '2', '3', '4', '5'];
+  const days = data.series.length ? data.series.map((series) => series.name) : ['数据'];
+  const points = data.series.flatMap((series, dayIndex) => (
+    hours.map((_, hourIndex): [number, number, number] => [
+      dayIndex,
+      hourIndex,
+      Math.max(0, Math.round(series.data[hourIndex] ?? 0)),
+    ])
+  ));
+
+  return { hours, days, data: points };
+}
+
+function buildSingleAxisScatterOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean): EChartsCoreOption {
+  const singleAxisData = getDefaultSingleAxisData(data);
+  const axisCount = Math.max(singleAxisData.days.length, 1);
+  const isCompactPreview = options.animationDuration === 0 && !options.showTitle && !options.showTooltip;
+  const axisLeft = isCompactPreview ? 52 : 150;
+  const singleAxisColors = mergeScatterColors(data.scatterStyle?.singleAxisColors, axisCount);
+  const title = singleAxisData.days.map((day, index) => ({
+    textBaseline: 'middle',
+    top: `${((index + 0.5) * 100) / axisCount}%`,
+    text: day,
+    textStyle: {
+      color: isDarkTheme ? '#e2e8f0' : '#434655',
+      fontFamily: 'Inter, sans-serif',
+      fontSize: 12,
+      fontWeight: 500,
+    },
+  }));
+  const singleAxis = singleAxisData.days.map((_, index) => ({
+    left: axisLeft,
+    right: options.showLegend && !isCompactPreview ? 120 : 20,
+    type: 'category',
+    boundaryGap: false,
+    data: singleAxisData.hours,
+    top: `${(index * 100) / axisCount + 5}%`,
+    height: `${100 / axisCount - 10}%`,
+    axisLabel: {
+      interval: isCompactPreview ? 4 : 2,
+      show: shouldShowAxisLabels(options),
+      color: isDarkTheme ? '#cbd5e1' : '#57657a',
+      fontFamily: 'Inter, sans-serif',
+    },
+    axisTick: { show: options.showXAxis },
+    axisLine: { show: options.showXAxis },
+    splitLine: {
+      show: shouldShowSplitLine(options),
+      lineStyle: { type: options.ySplitLineType, color: isDarkTheme ? '#334155' : '#e9e8e5' },
+    },
+  }));
+  const series = singleAxisData.days.map((day, index) => ({
+    name: day,
+    singleAxisIndex: index,
+    coordinateSystem: 'singleAxis',
+    type: 'scatter',
+    data: [] as Array<[number, number]>,
+    symbolSize: (dataItem: [number, number]) => dataItem[1] * 4,
+    itemStyle: {
+      color: singleAxisColors[index],
+    },
+  }));
+
+  singleAxisData.data.forEach((point) => {
+    const targetSeries = series[point[0]];
+    if (targetSeries) {
+      targetSeries.data.push([point[1], point[2]]);
+    }
+  });
+
+  return {
+    ...getAnimationOption(options),
+    backgroundColor: options.backgroundColor || (hasTheme ? undefined : 'transparent'),
+    color: hasTheme ? undefined : singleAxisColors,
+    tooltip: options.showTooltip ? { position: 'top' } : undefined,
+    legend: options.showLegend
+      ? {
+        data: singleAxisData.days,
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        textStyle: { color: isDarkTheme ? '#cbd5e1' : '#434655', fontFamily: 'Inter, sans-serif', fontSize: 13 },
+      }
+      : undefined,
+    title,
+    singleAxis,
+    series,
+  };
+}
+
+function buildScatterOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean): EChartsCoreOption {
+  if (options.subType === 'clustered') {
+    return buildClusteredScatterOption(data, options, isDarkTheme, hasTheme);
+  }
+
+  if (options.subType === 'single-axis') {
+    return buildSingleAxisScatterOption(data, options, isDarkTheme, hasTheme);
+  }
+
+  return buildBasicScatterOption(data, options, isDarkTheme, hasTheme);
+}
+
 function buildDefaultSeries(data: ChartData, options: ChartOptions, chartType: ChartType, hasTheme: boolean) {
   const isPie = chartType === 'pie';
   const isHorizontal = options.subType === 'horizontal' && chartType === 'bar';
@@ -1170,6 +1446,10 @@ function buildDefaultOption({
 
 export function buildChartOption(params: BuildChartOptionParams): EChartsCoreOption {
   const { data, options, chartType, isDarkTheme, hasTheme } = params;
+
+  if (chartType === 'scatter') {
+    return buildScatterOption(data, options, isDarkTheme, hasTheme);
+  }
 
   if (chartType === 'line' && options.subType && specialLineSubTypes.has(options.subType)) {
     return buildSpecialLineOption(data, options, isDarkTheme, hasTheme);

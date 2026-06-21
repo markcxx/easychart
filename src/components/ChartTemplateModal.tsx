@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, LayoutTemplate } from 'lucide-react';
 import { ChartType, ChartSubType, ChartOptions, ChartData } from '@/types';
-import { createSampleChart } from '@/lib/chart-samples';
+import { createSampleChart, createScatterTemplateData } from '@/lib/chart-samples';
 import { Chart } from './Chart';
 
 interface Template {
@@ -132,6 +132,20 @@ const TEMPLATES: Template[] = [
   {
     id: 'function-plot', name: '函数绘图', desc: '绘制连续函数曲线并支持缩放', type: 'line',
     getOptions: { subType: 'function-plot', smoothLine: false, fillArea: false, stepLine: false, showLegend: false, showDataLabels: false }
+  },
+
+  // SCATTER CHARTS
+  {
+    id: 'basic', name: '基础散点图', desc: '二维数值点分布', type: 'scatter',
+    getOptions: { subType: 'basic', scatterSize: 20, showLegend: false, showGrid: true }
+  },
+  {
+    id: 'clustered', name: '数据聚合', desc: '按坐标距离聚合分簇', type: 'scatter',
+    getOptions: { subType: 'clustered', scatterSize: 15, showLegend: true, showGrid: true }
+  },
+  {
+    id: 'single-axis', name: '单轴散点图', desc: '按日期分行展示小时分布', type: 'scatter',
+    getOptions: { subType: 'single-axis', scatterSize: 14, showLegend: false, showGrid: false, showDataLabels: false }
   }
 ];
 
@@ -196,6 +210,52 @@ const BROKEN_AXIS_THUMBNAIL_DATA: ChartData = {
 };
 
 function getThumbnailData(chartType: ChartType, subType: ChartSubType, baseData: ChartData): ChartData {
+  if (chartType === 'scatter') {
+    const scatterData = createScatterTemplateData(subType);
+
+    if (subType === 'clustered') {
+      return {
+        ...scatterData,
+        scatterData: scatterData.scatterData?.filter((_, index) => index % 2 === 0),
+      };
+    }
+
+    if (subType === 'single-axis' && scatterData.singleAxisScatterData) {
+      const source = scatterData.singleAxisScatterData;
+      const selectedDayIndexes = [0, 3, 6].filter((index) => index < source.days.length);
+      const selectedHourIndexes = source.hours
+        .map((_, index) => index)
+        .filter((index) => index % 2 === 0);
+      const hourIndexMap = new Map(selectedHourIndexes.map((hourIndex, index) => [hourIndex, index]));
+      const days = selectedDayIndexes.map((index) => source.days[index]);
+      const hours = selectedHourIndexes.map((index) => source.hours[index]);
+
+      return {
+        ...scatterData,
+        categories: days,
+        series: days.map((day, dayIndex) => ({
+          name: day,
+          data: hours.map((_, hourIndex) => (
+            source.data.find((point) => point[0] === selectedDayIndexes[dayIndex] && hourIndexMap.get(point[1]) === hourIndex)?.[2] ?? 0
+          )),
+        })),
+        singleAxisScatterData: {
+          days,
+          hours,
+          data: source.data
+            .filter((point) => selectedDayIndexes.includes(point[0]) && hourIndexMap.has(point[1]))
+            .map((point) => [
+              selectedDayIndexes.indexOf(point[0]),
+              hourIndexMap.get(point[1]) ?? 0,
+              point[2],
+            ]),
+        },
+      };
+    }
+
+    return scatterData;
+  }
+
   if (chartType === 'bar' && subType === 'broken-axis') {
     return BROKEN_AXIS_THUMBNAIL_DATA;
   }
@@ -323,7 +383,7 @@ export function ChartTemplateModal({ isOpen, onClose, chartType, currentSubType 
                          isActive ? "border-primary ring-2 ring-primary" : "border-outline-variant/30 group-hover:border-primary/50 group-hover:shadow-md"
                        )}
                      >
-                        <div className="w-full h-full transform transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-110 pointer-events-none">
+                        <div className="w-full h-full transform transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.02] pointer-events-none">
                            <Chart
                               className="w-full h-full"
                               isSidebarCollapsed={true}
