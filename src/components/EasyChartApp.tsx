@@ -208,7 +208,7 @@ function SaveProjectDialog({
             取消
           </button>
           <button
-            className="w-full px-md py-sm rounded-md bg-primary text-white hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+            className="w-full px-md py-sm rounded-md bg-primary !text-white hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
             onClick={onConfirm}
           >
             保存
@@ -258,7 +258,7 @@ function UnsavedChangesDialog({
             不保存
           </button>
           <button
-            className="w-full px-md py-sm rounded-md bg-primary text-white hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+            className="w-full px-md py-sm rounded-md bg-primary !text-white hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
             onClick={onSave}
           >
             保存后继续

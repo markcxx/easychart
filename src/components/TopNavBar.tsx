@@ -25,10 +25,10 @@ export function TopNavBar({ onToggleAiDrawer, onOpenProjects }: TopNavBarProps) 
             智能助手
           </button>
           <button
-            className="font-label-md text-label-md bg-primary hover:bg-primary-container text-white px-md py-sm rounded-md transition-colors flex items-center gap-xs"
+            className="font-label-md text-label-md bg-primary hover:bg-primary-container !text-white px-md py-sm rounded-md transition-colors flex items-center gap-xs"
             onClick={onOpenProjects}
           >
-            <BarChart3 className="w-[18px] h-[18px]" />
+            <BarChart3 className="w-[18px] h-[18px] text-white" />
             我的项目
           </button>
         </div>

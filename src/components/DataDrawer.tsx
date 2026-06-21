@@ -971,7 +971,7 @@ export function DataDrawer({
 
       <div className="p-md border-t border-outline-variant/30 bg-surface-container-low flex justify-end gap-sm">
         <button 
-          className="px-md py-sm bg-primary text-white rounded-md hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+          className="px-md py-sm bg-primary !text-white rounded-md hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
           onClick={onClose}
         >
           完成
