@@ -278,6 +278,32 @@ export function createMapTemplateData(subType: ChartSubType = 'china', region?: 
   };
 }
 
+export function createRadarTemplateData(): ChartData {
+  const indicators = [
+    { name: 'Sales', max: 6500 },
+    { name: 'Administration', max: 16000 },
+    { name: 'Information Technology', max: 30000 },
+    { name: 'Customer Support', max: 38000 },
+    { name: 'Development', max: 52000 },
+    { name: 'Marketing', max: 25000 },
+  ];
+
+  return {
+    categories: indicators.map((indicator) => indicator.name),
+    radarIndicators: indicators,
+    series: [
+      {
+        name: 'Allocated Budget',
+        data: [4200, 3000, 20000, 35000, 50000, 18000],
+      },
+      {
+        name: 'Actual Spending',
+        data: [5000, 14000, 28000, 26000, 42000, 21000],
+      },
+    ],
+  };
+}
+
 export function createSampleChart(type: ChartType, seed = 20240620): SampleChart {
   const random = createRandom(seed + type.charCodeAt(0) * 997);
   const categoryPool = pick(random, CATEGORY_POOLS);
@@ -325,6 +351,14 @@ export function createSampleChart(type: ChartType, seed = 20240620): SampleChart
       title: '中国地图',
       subtitle: '区域数据分布样例',
       data: createMapTemplateData('china'),
+    };
+  }
+
+  if (type === 'radar') {
+    return {
+      title: 'Basic Radar Chart',
+      subtitle: '',
+      data: createRadarTemplateData(),
     };
   }
 

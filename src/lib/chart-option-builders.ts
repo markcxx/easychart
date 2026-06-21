@@ -1511,6 +1511,99 @@ function buildMapOption(data: ChartData, options: ChartOptions, isDarkTheme: boo
   };
 }
 
+function getRadarIndicators(data: ChartData) {
+  return data.categories.map((category, index) => {
+    const configuredMax = data.radarIndicators?.[index]?.max ?? data.radarIndicators?.find((indicator) => indicator.name === category)?.max;
+    const numericConfiguredMax = Number(configuredMax);
+    const values = data.series.map((series) => Number(series.data[index] ?? 0)).filter(Number.isFinite);
+    const maxValue = Math.max(1, ...values);
+    const fallbackMax = Math.ceil((maxValue * 1.2) / 10) * 10;
+
+    return {
+      name: category,
+      max: Number.isFinite(numericConfiguredMax) && numericConfiguredMax > 0 ? numericConfiguredMax : fallbackMax,
+    };
+  });
+}
+
+function buildRadarOption(data: ChartData, options: ChartOptions, isDarkTheme: boolean, hasTheme: boolean, theme?: string): EChartsCoreOption {
+  const palette = getEchartsThemePalette(theme);
+  const radarSeriesData = data.series.map((series, seriesIndex) => {
+    const color = hasCustomSeriesStyle(series) && series.color ? series.color : palette[seriesIndex % palette.length];
+    const lineWidth = hasCustomSeriesStyle(series) ? series.lineWidth ?? options.lineWidth : options.lineWidth;
+
+    return {
+      value: data.categories.map((_, categoryIndex) => series.data[categoryIndex] ?? 0),
+      name: series.name,
+      itemStyle: color ? { color } : undefined,
+      lineStyle: {
+        color,
+        width: lineWidth,
+      },
+      areaStyle: options.fillArea
+        ? {
+          opacity: options.areaOpacity ?? 0.25,
+          color: color ? colorWithAlpha(color, options.areaOpacity ?? 0.25) : undefined,
+        }
+        : undefined,
+    };
+  });
+
+  return {
+    ...getAnimationOption(options),
+    backgroundColor: options.backgroundColor || (hasTheme ? undefined : 'transparent'),
+    color: hasTheme ? undefined : palette,
+    title: getTitleOption(options, isDarkTheme),
+    tooltip: options.showTooltip ? { trigger: 'item' } : undefined,
+    legend: options.showLegend ? {
+      data: data.series.map((series) => series.name),
+      type: options.legendType || 'plain',
+      orient: options.legendLayout,
+      bottom: options.legendLayout === 'horizontal' ? 0 : 'center',
+      right: options.legendLayout === 'vertical' ? 0 : 'center',
+      left: options.legendLayout === 'horizontal' ? 'center' : undefined,
+      icon: 'roundRect',
+      itemWidth: 16,
+      itemHeight: 8,
+      textStyle: { color: isDarkTheme ? '#cbd5e1' : '#434655', fontFamily: 'Inter, sans-serif', fontSize: 13 },
+    } : undefined,
+    radar: {
+      indicator: getRadarIndicators(data),
+      radius: options.showLegend && options.legendLayout === 'horizontal' ? '62%' : '70%',
+      center: options.showLegend && options.legendLayout === 'vertical' ? ['42%', '54%'] : ['50%', '54%'],
+      axisName: {
+        color: isDarkTheme ? '#cbd5e1' : '#434655',
+        fontFamily: 'Inter, sans-serif',
+      },
+      splitLine: {
+        lineStyle: {
+          color: isDarkTheme ? ['#334155'] : ['#e5e7eb'],
+        },
+      },
+      splitArea: {
+        areaStyle: {
+          color: isDarkTheme
+            ? ['rgba(15, 23, 42, 0.15)', 'rgba(15, 23, 42, 0.28)']
+            : ['rgba(248, 250, 252, 0.65)', 'rgba(241, 245, 249, 0.85)'],
+        },
+      },
+      axisLine: {
+        lineStyle: {
+          color: isDarkTheme ? '#475569' : '#d1d5db',
+        },
+      },
+    },
+    series: [
+      {
+        name: options.title || 'Budget vs spending',
+        type: 'radar',
+        data: radarSeriesData,
+        label: getLabelOption(options),
+      },
+    ],
+  };
+}
+
 function buildDefaultSeries(data: ChartData, options: ChartOptions, chartType: ChartType, hasTheme: boolean) {
   const isPie = chartType === 'pie';
   const isHorizontal = options.subType === 'horizontal' && chartType === 'bar';
@@ -1683,6 +1776,10 @@ export function buildChartOption(params: BuildChartOptionParams): EChartsCoreOpt
 
   if (chartType === 'map') {
     return buildMapOption(data, options, isDarkTheme, hasTheme, theme);
+  }
+
+  if (chartType === 'radar') {
+    return buildRadarOption(data, options, isDarkTheme, hasTheme, theme);
   }
 
   if (chartType === 'scatter') {

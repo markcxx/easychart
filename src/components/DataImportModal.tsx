@@ -32,6 +32,7 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   pie: '饼图',
   scatter: '散点图',
   map: '地图',
+  radar: '雷达图',
 };
 
 function ColumnSelect({

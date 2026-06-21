@@ -118,10 +118,11 @@ export function DataDrawer({
   const secondaryCategories = data.secondaryCategories || data.categories.map(getSecondaryCategoryFallback);
   const supportsMarkers = (chartType === 'bar' || chartType === 'line') && !isFunctionPlot;
   const supportsLineSeriesStyle = chartType === 'line' && !isFunctionPlot;
+  const supportsRadarSeriesStyle = chartType === 'radar';
   const supportsBarSeriesStyle = chartType === 'bar' && !isFunctionPlot;
   const supportsBarPointStyle = supportsBarSeriesStyle && (!subType || !BAR_POINT_STYLE_UNSUPPORTED_SUBTYPES.includes(subType));
   const barPointStyleEnabled = supportsBarPointStyle && data.barItemStyle?.enabled === true;
-  const supportsSeriesStyle = supportsLineSeriesStyle || supportsBarSeriesStyle;
+  const supportsSeriesStyle = supportsLineSeriesStyle || supportsBarSeriesStyle || supportsRadarSeriesStyle;
   const isScatter = chartType === 'scatter';
   const supportsBasicScatterStyle = isScatter && subType !== 'clustered' && subType !== 'single-axis';
   const supportsClusteredScatterStyle = isScatter && subType === 'clustered';
@@ -141,6 +142,7 @@ export function DataDrawer({
     isPiecewise: false,
     splitNumber: 5,
   };
+  const categoryLabel = chartType === 'radar' ? '维度' : chartType === 'map' ? '区域' : '类别';
 
   const handleClose = () => {
     onClose();
@@ -176,7 +178,14 @@ export function DataDrawer({
   const updateCategory = (idx: number, val: string) => {
     const newCategories = [...data.categories];
     newCategories[idx] = val;
-    onChange({ ...data, categories: newCategories });
+    const radarIndicators = chartType === 'radar'
+      ? newCategories.map((category, categoryIndex) => ({
+        name: category,
+        max: data.radarIndicators?.[categoryIndex]?.max ?? getRadarIndicatorFallbackMax(categoryIndex),
+      }))
+      : data.radarIndicators;
+
+    onChange({ ...data, categories: newCategories, radarIndicators });
   };
 
   const updateSecondaryCategory = (idx: number, val: string) => {
@@ -215,6 +224,23 @@ export function DataDrawer({
         [key]: value,
       },
     });
+  };
+
+  const getRadarIndicatorFallbackMax = (categoryIndex: number) => {
+    const values = data.series.map((series) => Number(series.data[categoryIndex] ?? 0)).filter(Number.isFinite);
+    const maxValue = Math.max(1, ...values);
+    return Math.ceil((maxValue * 1.2) / 10) * 10;
+  };
+
+  const updateRadarIndicatorMax = (categoryIndex: number, value: number) => {
+    const radarIndicators = data.categories.map((category, index) => ({
+      name: category,
+      max: index === categoryIndex
+        ? Math.max(1, value)
+        : data.radarIndicators?.[index]?.max ?? getRadarIndicatorFallbackMax(index),
+    }));
+
+    onChange({ ...data, radarIndicators });
   };
 
   const updateSeriesStyle = (sIdx: number, key: SeriesStyleKey, value: string) => {
@@ -329,12 +355,19 @@ export function DataDrawer({
   };
 
   const addRow = () => {
+    const nextCategory = `分类${data.categories.length + 1}`;
     onChange({
       ...data,
-      categories: [...data.categories, `分类${data.categories.length + 1}`],
+      categories: [...data.categories, nextCategory],
       secondaryCategories: showSecondaryXAxis
-        ? [...secondaryCategories, getSecondaryCategoryFallback(`分类${data.categories.length + 1}`, data.categories.length)]
+        ? [...secondaryCategories, getSecondaryCategoryFallback(nextCategory, data.categories.length)]
         : data.secondaryCategories,
+      radarIndicators: chartType === 'radar'
+        ? [...(data.radarIndicators || data.categories.map((category, index) => ({
+          name: category,
+          max: getRadarIndicatorFallbackMax(index),
+        }))), { name: nextCategory, max: 100 }]
+        : data.radarIndicators,
       series: data.series.map(s => ({
         ...s,
         data: [...s.data, 0]
@@ -379,6 +412,7 @@ export function DataDrawer({
       ...data,
       categories: data.categories.filter((_, idx) => idx !== cIdx),
       secondaryCategories: data.secondaryCategories?.filter((_, idx) => idx !== cIdx),
+      radarIndicators: data.radarIndicators?.filter((_, idx) => idx !== cIdx),
       series: data.series.map(s => ({
         ...s,
         data: s.data.filter((_, idx) => idx !== cIdx),
@@ -582,6 +616,34 @@ export function DataDrawer({
           </div>
         )}
 
+        {chartType === 'radar' && (
+          <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
+            <h4 className="font-label-md text-label-md text-on-surface font-semibold">雷达维度上限</h4>
+            <div className="border border-outline-variant/50 rounded-md overflow-hidden shadow-sm">
+              <div className="grid grid-cols-[minmax(160px,1fr)_160px] bg-surface-container-low text-label-md font-label-md text-on-surface font-semibold border-b border-outline-variant/40">
+                <div className="px-sm py-xs border-r border-outline-variant/40">维度</div>
+                <div className="px-sm py-xs">最大值</div>
+              </div>
+              {data.categories.map((category, categoryIndex) => (
+                <div key={`${category}-${categoryIndex}`} className="grid grid-cols-[minmax(160px,1fr)_160px] items-center border-b border-outline-variant/30 last:border-b-0 bg-surface-container-lowest">
+                  <div className="px-sm py-xs border-r border-outline-variant/30 text-body-md text-on-surface truncate" title={category}>
+                    {category}
+                  </div>
+                  <div className="px-sm py-xs">
+                    <input
+                      className="w-full h-9 px-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      type="number"
+                      min={1}
+                      value={data.radarIndicators?.[categoryIndex]?.max ?? getRadarIndicatorFallbackMax(categoryIndex)}
+                      onChange={(event) => updateRadarIndicatorMax(categoryIndex, Number(event.target.value))}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {isFunctionPlot && (
           <div className="bg-surface-container-lowest rounded-md border border-outline-variant/30 p-md shadow-sm flex flex-col gap-md">
             <h4 className="font-label-md text-label-md text-on-surface font-semibold">函数配置</h4>
@@ -665,7 +727,7 @@ export function DataDrawer({
             <div className="flex gap-sm">
               <button onClick={addRow} className="flex items-center gap-xs px-sm py-xs bg-surface-container-high hover:bg-surface-variant text-on-surface rounded-md text-label-md font-label-md transition-colors shadow-sm cursor-pointer">
                 <PlusSquare className="w-4 h-4" />
-                添加行
+                添加{categoryLabel}
               </button>
               <button onClick={addColumn} className="flex items-center gap-xs px-sm py-xs bg-surface-container-high hover:bg-surface-variant text-on-surface rounded-md text-label-md font-label-md transition-colors shadow-sm cursor-pointer">
                 <Columns className="w-4 h-4" />
@@ -678,7 +740,7 @@ export function DataDrawer({
               <thead className="bg-surface-container-low text-on-surface font-medium border-b border-outline-variant/50">
                 <tr>
                   <th className="w-10 border-r border-outline-variant/50"></th>
-                  <th className="py-sm px-sm border-r border-outline-variant/50 w-32 sticky left-0 bg-surface-container-low z-10">类别 \ 系列</th>
+                  <th className="py-sm px-sm border-r border-outline-variant/50 w-32 sticky left-0 bg-surface-container-low z-10">{categoryLabel} \ 系列</th>
                   {showSecondaryXAxis && (
                     <th className="py-sm px-sm border-r border-outline-variant/50 w-36 bg-surface-container-low">第二 X 轴</th>
                   )}

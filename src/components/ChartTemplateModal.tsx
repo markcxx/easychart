@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, LayoutTemplate } from 'lucide-react';
 import { ChartType, ChartSubType, ChartOptions, ChartData } from '@/types';
-import { createMapTemplateData, createSampleChart, createScatterTemplateData } from '@/lib/chart-samples';
+import { createMapTemplateData, createRadarTemplateData, createSampleChart, createScatterTemplateData } from '@/lib/chart-samples';
 import { Chart } from './Chart';
 
 interface Template {
@@ -164,6 +164,12 @@ const TEMPLATES: Template[] = [
   {
     id: 'world', name: '世界地图', desc: '按国家区域展示数值分布', type: 'map',
     getOptions: { subType: 'world', showLegend: true, showTooltip: true, showGrid: false, showXAxis: false, showAxisLabels: false, mapRegion: 'world' }
+  },
+
+  // RADAR CHARTS
+  {
+    id: 'basic', name: '基础雷达图', desc: '多指标能力或预算对比', type: 'radar',
+    getOptions: { subType: 'basic', showLegend: true, showTooltip: true, showGrid: false, showXAxis: false, showAxisLabels: false }
   }
 ];
 
@@ -283,6 +289,10 @@ function getThumbnailData(chartType: ChartType, subType: ChartSubType, baseData:
 
   if (chartType === 'map') {
     return createMapTemplateData(subType);
+  }
+
+  if (chartType === 'radar') {
+    return createRadarTemplateData();
   }
 
   if (chartType === 'bar' && subType === 'broken-axis') {

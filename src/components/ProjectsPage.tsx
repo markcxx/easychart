@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Download, FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getChartRoute } from '@/lib/chart-routes';
 import {
   deleteLocalProject,
   formatProjectSize,
@@ -17,6 +18,7 @@ const CHART_TYPE_LABELS: Record<SavedChartProject['chartType'], string> = {
   pie: '饼图',
   scatter: '散点图',
   map: '地图',
+  radar: '雷达图',
 };
 
 function formatDate(value: string) {
@@ -60,12 +62,12 @@ export function ProjectsPage() {
   return (
     <div className="min-h-screen w-full bg-surface-container-low text-on-surface flex flex-col">
       <header className="h-16 px-lg flex items-center justify-between border-b border-outline-variant/30 bg-surface">
-        <a href="/" className="flex items-center gap-sm">
+        <a href={getChartRoute('bar')} className="flex items-center gap-sm">
           <img src="/easychart.svg" alt="EasyChart" className="h-8 w-8" />
           <span className="text-headline-sm font-headline-sm font-bold text-primary">EasyChart</span>
         </a>
         <a
-          href="/"
+          href={getChartRoute('bar')}
           className="flex items-center gap-xs px-md py-sm bg-primary !text-white rounded-md hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4 text-white" />
@@ -119,7 +121,7 @@ export function ProjectsPage() {
                   <div className="px-md py-sm">
                     <div className="flex justify-end gap-xs">
                       <a
-                        href={`/?projectId=${encodeURIComponent(project.id)}`}
+                        href={getChartRoute(project.chartType, project.id)}
                         className={cn(
                           "flex items-center gap-xs px-sm py-xs rounded-md bg-primary !text-white hover:bg-primary-container",
                           "font-label-md text-label-md transition-colors shadow-sm"

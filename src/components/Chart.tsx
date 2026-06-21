@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
-import { BarChart, LineChart, MapChart, PieChart, ScatterChart } from 'echarts/charts';
+import { BarChart, LineChart, MapChart, PieChart, RadarChart, ScatterChart } from 'echarts/charts';
 import {
   DataZoomComponent,
   DatasetComponent,
@@ -11,6 +11,7 @@ import {
   MarkLineComponent,
   MarkPointComponent,
   PolarComponent,
+  RadarComponent,
   SingleAxisComponent,
   TitleComponent,
   TooltipComponent,
@@ -29,6 +30,7 @@ echarts.use([
   LineChart,
   MapChart,
   PieChart,
+  RadarChart,
   ScatterChart,
   DataZoomComponent,
   DatasetComponent,
@@ -37,6 +39,7 @@ echarts.use([
   MarkLineComponent,
   MarkPointComponent,
   PolarComponent,
+  RadarComponent,
   SingleAxisComponent,
   TitleComponent,
   TooltipComponent,

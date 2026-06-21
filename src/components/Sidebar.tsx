@@ -23,10 +23,10 @@ export function Sidebar({ isCollapsed, onToggle, activeChart, onChartSelect }: S
     { icon: PieChart, label: '饼图', type: 'pie' },
     { icon: ScatterChart, label: '散点图', type: 'scatter' },
     { icon: Map, label: '地图', type: 'map' },
+    { icon: Radar, label: '雷达图', type: 'radar' },
   ];
 
   const navItems2 = [
-    { icon: Radar, label: '雷达图' },
     { icon: Filter, label: '漏斗图' },
     { icon: Grid, label: '热力图' },
     { icon: Share2, label: '关系图' },

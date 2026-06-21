@@ -339,6 +339,15 @@ function buildCategorySeriesData(table: ImportedTable, mapping: ImportMapping, c
     data: {
       categories,
       series: chartType === 'pie' ? series.slice(0, 1) : series,
+      radarIndicators: chartType === 'radar'
+        ? categories.map((category, categoryIndex) => {
+          const maxValue = Math.max(1, ...series.map((item) => item.data[categoryIndex] ?? 0));
+          return {
+            name: category,
+            max: Math.ceil((maxValue * 1.2) / 10) * 10,
+          };
+        })
+        : undefined,
     },
     errors,
     warnings,

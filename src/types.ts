@@ -63,6 +63,11 @@ export interface MapStyle {
   region?: string;
 }
 
+export interface RadarIndicator {
+  name: string;
+  max: number;
+}
+
 export interface ChartData {
   categories: string[];
   secondaryCategories?: string[];
@@ -78,9 +83,10 @@ export interface ChartData {
   scatterStyle?: ScatterStyle;
   mapPoints?: MapPoint[];
   mapStyle?: MapStyle;
+  radarIndicators?: RadarIndicator[];
 }
 
-export type ChartType = 'bar' | 'line' | 'pie' | 'scatter' | 'map';
+export type ChartType = 'bar' | 'line' | 'pie' | 'scatter' | 'map' | 'radar';
 export type ChartSubType = 
   | 'basic' 
   | 'stacked' 

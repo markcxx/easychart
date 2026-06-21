@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic';
 import { getInstanceByDom } from 'echarts/core';
 import { Toaster, toast } from 'react-hot-toast';
 import { cn } from '@/lib/utils';
-import { createMapTemplateData, createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
+import { getChartRoute } from '@/lib/chart-routes';
+import { createMapTemplateData, createRadarTemplateData, createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
 import { DEFAULT_FUNCTION_PLOT } from '@/lib/function-plot';
 import {
   createProjectSnapshotKey,
@@ -95,9 +96,9 @@ function createDefaultOptions(type: ChartType, sample = createSampleChart(type))
     title: sample.title,
     subtitle: sample.subtitle,
     subType: type === 'map' ? 'china' : 'basic',
-    showGrid: type !== 'pie' && type !== 'map',
-    showXAxis: type !== 'pie' && type !== 'map',
-    showAxisLabels: type !== 'pie' && type !== 'map',
+    showGrid: type !== 'pie' && type !== 'map' && type !== 'radar',
+    showXAxis: type !== 'pie' && type !== 'map' && type !== 'radar',
+    showAxisLabels: type !== 'pie' && type !== 'map' && type !== 'radar',
     labelPosition: type === 'pie' ? 'outside' : 'top',
     mapRegion: type === 'map' ? 'china' : BASE_OPTIONS.mapRegion,
     mapVisualMap: { ...BASE_OPTIONS.mapVisualMap },
@@ -115,6 +116,10 @@ function createDefaultOptions(type: ChartType, sample = createSampleChart(type))
 }
 
 const DEFAULT_OPTIONS = createDefaultOptions('bar', DEFAULT_SAMPLE);
+
+interface EasyChartAppProps {
+  initialChartType?: ChartType;
+}
 
 function getTemplateSeriesRole(subType: ChartSubType, seriesIndex: number, seriesCount: number): ChartSeriesRole {
   if (subType === 'stacked' || subType === 'rounded-stacked' || subType === 'stacked-horizontal') {
@@ -281,14 +286,16 @@ function UnsavedChangesDialog({
   );
 }
 
-export function EasyChartApp() {
+export function EasyChartApp({ initialChartType = 'bar' }: EasyChartAppProps) {
+  const initialSample = useMemo(() => createSampleChart(initialChartType), [initialChartType]);
+  const initialOptions = useMemo(() => createDefaultOptions(initialChartType, initialSample), [initialChartType, initialSample]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [chartTheme, setChartTheme] = useState('default');
-  const [chartType, setChartType] = useState<ChartType>('bar');
-  const [chartData, setChartData] = useState<ChartData>(DEFAULT_SAMPLE.data);
-  const [chartOptions, setChartOptions] = useState<ChartOptions>(DEFAULT_OPTIONS);
+  const [chartType, setChartType] = useState<ChartType>(initialChartType);
+  const [chartData, setChartData] = useState<ChartData>(initialSample.data);
+  const [chartOptions, setChartOptions] = useState<ChartOptions>(initialOptions);
   const [chartTitle, setChartTitle] = useState('未命名图表_01');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
@@ -330,6 +337,10 @@ export function EasyChartApp() {
     setLastSavedSnapshotKey(createProjectSnapshotKey(snapshot));
   };
 
+  const replaceWorkbenchRoute = (type: ChartType, projectId?: string | null) => {
+    window.history.replaceState(null, '', getChartRoute(type, projectId));
+  };
+
   const switchToNewChart = (type: ChartType) => {
     const sample = createSampleChart(type, createSampleSeed());
     const options = createDefaultOptions(type, sample);
@@ -350,6 +361,7 @@ export function EasyChartApp() {
     setProjectName(title);
     setSaveName(title);
     setCurrentProjectId(null);
+    replaceWorkbenchRoute(type);
     markCleanSnapshot(snapshot);
   };
 
@@ -389,6 +401,7 @@ export function EasyChartApp() {
         setCurrentProjectId(project.id);
         setProjectName(title);
         setSaveName(title);
+        replaceWorkbenchRoute(project.chartType, project.id);
         markCleanSnapshot(snapshot);
         showSuccessToast('已打开项目');
         return;
@@ -397,17 +410,18 @@ export function EasyChartApp() {
       showErrorToast('没有找到这个项目');
     }
 
-    const sample = createSampleChart('bar', createSampleSeed());
-    const options = createDefaultOptions('bar', sample);
+    const sample = createSampleChart(initialChartType, createSampleSeed());
+    const options = createDefaultOptions(initialChartType, sample);
     const title = '未命名图表_01';
     const snapshot: ChartProjectSnapshot = {
-      chartType: 'bar',
+      chartType: initialChartType,
       chartTheme: 'default',
       chartTitle: title,
       chartData: sample.data,
       chartOptions: options,
     };
 
+    setChartType(initialChartType);
     setChartData(sample.data);
     setChartOptions(options);
     setChartTitle(title);
@@ -415,7 +429,7 @@ export function EasyChartApp() {
     setSaveName(title);
     setCurrentProjectId(null);
     markCleanSnapshot(snapshot);
-  }, []);
+  }, [initialChartType]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -448,6 +462,7 @@ export function EasyChartApp() {
       setProjectName(savedProject.name);
       setChartTitle(savedProject.chartTitle);
       setSaveName(savedProject.name);
+      replaceWorkbenchRoute(savedProject.chartType, savedProject.id);
       markCleanSnapshot(snapshotFromProject(savedProject));
       setIsSaveDialogOpen(false);
       setSaveError(null);
@@ -544,7 +559,8 @@ export function EasyChartApp() {
     'line': '折线图',
     'pie': '饼图',
     'scatter': '散点图',
-    'map': '地图'
+    'map': '地图',
+    'radar': '雷达图'
   }[chartType];
 
   return (
@@ -740,6 +756,9 @@ export function EasyChartApp() {
           }
           if (chartType === 'map') {
             setChartData(createMapTemplateData(subType));
+          }
+          if (chartType === 'radar') {
+            setChartData(createRadarTemplateData());
           }
           setIsTemplateModalOpen(false);
           showSuccessToast('已切换图表模板！');

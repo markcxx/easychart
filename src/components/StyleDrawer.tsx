@@ -248,10 +248,10 @@ export function StyleDrawer({ isOpen, onClose, chartTheme, onThemeChange, option
       case 'axis':
         return (
           <div className="flex flex-col gap-md">
-            {chartType === 'pie' || chartType === 'map' ? (
+            {chartType === 'pie' || chartType === 'map' || chartType === 'radar' ? (
               <ConfigSection title="坐标系">
                 <span className="text-body-md text-on-surface-variant">
-                  {chartType === 'map' ? '地图不使用直角坐标轴。' : '饼图不使用坐标轴。'}
+                  {chartType === 'pie' ? '饼图不使用坐标轴。' : `${chartType === 'map' ? '地图' : '雷达图'}不使用直角坐标轴。`}
                 </span>
               </ConfigSection>
             ) : (
