@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { DEFAULT_FUNCTION_PLOT, normalizeFunctionPlot } from '@/lib/function-plot';
+import { parseImportFile, type ImportedTable } from '@/lib/import-data';
 import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT } from '@/lib/scatter-clustering';
 import { ChartData, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
+import { DataImportModal } from './DataImportModal';
 
 interface DataDrawerProps {
   isOpen: boolean;
@@ -71,6 +73,11 @@ export function DataDrawer({
   onSubtitleChange,
 }: DataDrawerProps) {
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [importTable, setImportTable] = useState<ImportedTable | null>(null);
+  const [importFileName, setImportFileName] = useState('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isFunctionPlot = chartType === 'line' && subType === 'function-plot';
   const showSecondaryXAxis = chartType === 'line' && subType === 'multi-x';
   const secondaryCategories = data.secondaryCategories || data.categories.map(getSecondaryCategoryFallback);
@@ -95,6 +102,32 @@ export function DataDrawer({
   const handleClose = () => {
     onClose();
     setTimeout(() => setIsFullScreen(false), 300);
+  };
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+
+    setImportError(null);
+
+    if (file.size > 50 * 1024 * 1024) {
+      setImportError('文件超过 50MB，请拆分后再导入。');
+      return;
+    }
+
+    try {
+      const table = await parseImportFile(file);
+      setImportFileName(file.name);
+      setImportTable(table);
+      setIsImportModalOpen(true);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : '文件解析失败。');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const closeImportModal = () => {
+    setIsImportModalOpen(false);
   };
 
   const updateCategory = (idx: number, val: string) => {
@@ -267,7 +300,8 @@ export function DataDrawer({
   };
 
   return (
-    <div 
+    <>
+    <div
       className={cn(
         "fixed inset-y-0 right-0 bg-surface-container-lowest shadow-xl border-l border-outline-variant/30 z-[70] flex flex-col transform transition-all duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "translate-x-full",
@@ -329,10 +363,32 @@ export function DataDrawer({
         </div>
 
         {/* Upload Area */}
-        <div className="border-2 border-dashed border-outline-variant/60 rounded-md p-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-primary-fixed hover:border-primary transition-colors group bg-surface">
+        <div
+          className="border-2 border-dashed border-outline-variant/60 rounded-md p-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-primary-fixed hover:border-primary transition-colors group bg-surface"
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(event) => {
+            event.preventDefault();
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            void handleImportFile(event.dataTransfer.files[0]);
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            className="hidden"
+            type="file"
+            accept=".csv,.tsv,.txt,.xlsx,.xls"
+            onChange={(event) => void handleImportFile(event.target.files?.[0])}
+          />
           <UploadCloud className="text-outline w-12 h-12 group-hover:text-primary mb-sm transition-colors" />
-          <p className="text-body-lg font-body-lg text-on-surface mb-xs font-medium">拖拽/点击导入 Excel/CSV</p>
-          <p className="text-body-md font-body-md text-on-surface-variant">支持 .xlsx, .xls, .csv 格式，单文件最大 50MB</p>
+          <p className="text-body-lg font-body-lg text-on-surface mb-xs font-medium">拖拽/点击导入数据文件</p>
+          <p className="text-body-md font-body-md text-on-surface-variant">支持 .xlsx, .xls, .csv, .tsv, .txt，单文件最大 50MB</p>
+          {importError && (
+            <p className="mt-sm text-body-md font-body-md text-on-error-container bg-error-container border border-error/30 rounded-md px-sm py-xs">
+              {importError}
+            </p>
+          )}
         </div>
 
         {isFunctionPlot && (
@@ -922,5 +978,18 @@ export function DataDrawer({
         </button>
       </div>
     </div>
+    <DataImportModal
+      isOpen={isImportModalOpen}
+      fileName={importFileName}
+      table={importTable}
+      chartType={chartType}
+      subType={subType}
+      onClose={closeImportModal}
+      onApply={(importedData) => {
+        onChange(importedData);
+        setIsImportModalOpen(false);
+      }}
+    />
+    </>
   );
 }
