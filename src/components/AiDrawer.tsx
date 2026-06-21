@@ -82,7 +82,7 @@ export function AiDrawer({ isOpen, onClose }: AiDrawerProps) {
             <button className="p-sm rounded-lg text-on-surface-variant hover:bg-surface-variant transition-colors" title="上传数据文件">
               <Paperclip className="w-5 h-5" />
             </button>
-            <button className="p-sm rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-sm" title="发送">
+            <button className="p-sm rounded-lg bg-primary text-white hover:bg-primary-container transition-colors shadow-sm" title="发送">
               <Send className="w-5 h-5" />
             </button>
           </div>

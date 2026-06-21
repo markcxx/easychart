@@ -289,7 +289,7 @@ export function DataImportModal({
           </button>
           <button
             className={cn(
-              "flex items-center gap-xs px-md py-sm rounded-md bg-primary text-on-primary font-label-md text-label-md transition-colors shadow-sm",
+              "flex items-center gap-xs px-md py-sm rounded-md bg-primary text-white font-label-md text-label-md transition-colors shadow-sm",
               canApply ? "hover:bg-primary-container cursor-pointer" : "opacity-50 cursor-not-allowed"
             )}
             disabled={!canApply}

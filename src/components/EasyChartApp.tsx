@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getInstanceByDom } from 'echarts/core';
 import { cn } from '@/lib/utils';
 import { createSampleChart, createSampleSeed, createScatterTemplateData } from '@/lib/chart-samples';
 import { DEFAULT_FUNCTION_PLOT } from '@/lib/function-plot';
+import {
+  createProjectSnapshotKey,
+  getLocalProject,
+  saveLocalProject,
+  type ChartProjectSnapshot,
+  type SavedChartProject,
+} from '@/lib/local-projects';
 import { Database, Palette, Save, Download, Code, Edit2, LayoutTemplate } from 'lucide-react';
 import { TopNavBar } from './TopNavBar';
 import { Sidebar } from './Sidebar';
@@ -21,6 +28,7 @@ const ChartTemplateModal = dynamic(
 );
 
 type DrawerType = 'ai' | 'data' | 'style' | null;
+type PendingAction = { type: 'chart'; chartType: ChartType } | { type: 'projects' };
 
 const DEFAULT_SAMPLE = createSampleChart('bar');
 
@@ -139,6 +147,128 @@ function withFunctionPlot(data: ChartData): ChartData {
   };
 }
 
+function snapshotFromProject(project: SavedChartProject): ChartProjectSnapshot {
+  return {
+    chartType: project.chartType,
+    chartTheme: project.chartTheme,
+    chartTitle: project.chartTitle,
+    chartData: project.chartData,
+    chartOptions: project.chartOptions,
+  };
+}
+
+function SaveProjectDialog({
+  isOpen,
+  name,
+  error,
+  onNameChange,
+  onCancel,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  name: string;
+  error: string | null;
+  onNameChange: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-surface-container-highest/60 backdrop-blur-sm p-md">
+      <div className="w-full max-w-[520px] min-h-[340px] rounded-lg border border-outline-variant/40 bg-surface-container-lowest shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-lg py-md border-b border-outline-variant/30 bg-surface">
+          <h3 className="text-headline-sm font-headline-sm text-on-surface font-semibold">保存项目</h3>
+          <p className="mt-xs text-body-md text-on-surface-variant">保存后可在“我的项目”中重新打开。</p>
+        </div>
+        <div className="p-lg flex-1 flex flex-col justify-center gap-md bg-surface-container-lowest">
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md font-label-md text-on-surface font-medium">项目名称</span>
+            <input
+              autoFocus
+              className="w-full h-11 px-sm border border-outline-variant/50 rounded-md bg-surface text-body-md font-body-md outline-none focus:ring-1 focus:ring-primary focus:border-primary shadow-sm"
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') onConfirm();
+              }}
+            />
+          </label>
+          {error && (
+            <div className="rounded-md border border-error/30 bg-error-container px-sm py-xs text-body-md text-on-error-container">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className="p-md border-t border-outline-variant/30 bg-surface-container-low grid grid-cols-2 gap-sm">
+          <button
+            className="w-full px-md py-sm rounded-md bg-error text-on-error hover:bg-on-error-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+            onClick={onCancel}
+          >
+            取消
+          </button>
+          <button
+            className="w-full px-md py-sm rounded-md bg-primary text-white hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+            onClick={onConfirm}
+          >
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnsavedChangesDialog({
+  isOpen,
+  onSave,
+  onDiscard,
+  onCancel,
+}: {
+  isOpen: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-surface-container-highest/60 backdrop-blur-sm p-md">
+      <div className="w-full max-w-[520px] min-h-[340px] rounded-lg border border-outline-variant/40 bg-surface-container-lowest shadow-2xl overflow-hidden flex flex-col">
+        <div className="px-lg py-md border-b border-outline-variant/30 bg-surface">
+          <h3 className="text-headline-sm font-headline-sm text-on-surface font-semibold">当前项目尚未保存</h3>
+          <p className="mt-xs text-body-md text-on-surface-variant">你正在离开当前图表配置。</p>
+        </div>
+        <div className="p-lg flex-1 bg-surface-container-lowest flex items-center">
+          <p className="text-body-md text-on-surface-variant leading-relaxed">
+            当前数据、模板或样式存在未保存的修改。你可以先保存项目，或放弃这些修改后继续。
+          </p>
+        </div>
+        <div className="p-md border-t border-outline-variant/30 bg-surface-container-low grid grid-cols-1 sm:grid-cols-3 gap-sm">
+          <button
+            className="w-full px-md py-sm rounded-md bg-error text-on-error hover:bg-on-error-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+            onClick={onCancel}
+          >
+            取消
+          </button>
+          <button
+            className="w-full px-md py-sm rounded-md border border-outline-variant/40 bg-surface text-on-surface hover:bg-surface-variant font-label-md text-label-md transition-colors cursor-pointer"
+            onClick={onDiscard}
+          >
+            不保存
+          </button>
+          <button
+            className="w-full px-md py-sm rounded-md bg-primary text-white hover:bg-primary-container font-label-md text-label-md transition-colors shadow-sm cursor-pointer"
+            onClick={onSave}
+          >
+            保存后继续
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EasyChartApp() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeDrawer, setActiveDrawer] = useState<DrawerType>(null);
@@ -150,6 +280,24 @@ export function EasyChartApp() {
   const [chartTitle, setChartTitle] = useState('未命名图表_01');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState('未命名图表_01');
+  const [lastSavedSnapshotKey, setLastSavedSnapshotKey] = useState('');
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [saveName, setSaveName] = useState('未命名图表_01');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [isUnsavedDialogOpen, setIsUnsavedDialogOpen] = useState(false);
+
+  const currentSnapshot = useMemo<ChartProjectSnapshot>(() => ({
+    chartType,
+    chartTheme,
+    chartTitle,
+    chartData,
+    chartOptions,
+  }), [chartData, chartOptions, chartTheme, chartTitle, chartType]);
+  const currentSnapshotKey = useMemo(() => createProjectSnapshotKey(currentSnapshot), [currentSnapshot]);
+  const hasUnsavedChanges = Boolean(lastSavedSnapshotKey) && currentSnapshotKey !== lastSavedSnapshotKey;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -160,19 +308,142 @@ export function EasyChartApp() {
     setActiveDrawer(current => current === drawer ? null : drawer);
   };
 
-  useEffect(() => {
-    const sample = createSampleChart('bar', createSampleSeed());
+  const markCleanSnapshot = (snapshot: ChartProjectSnapshot) => {
+    setLastSavedSnapshotKey(createProjectSnapshotKey(snapshot));
+  };
 
-    setChartData(sample.data);
-    setChartOptions(createDefaultOptions('bar', sample));
-  }, []);
-
-  const handleChartSelect = (type: ChartType) => {
+  const switchToNewChart = (type: ChartType) => {
     const sample = createSampleChart(type, createSampleSeed());
+    const options = createDefaultOptions(type, sample);
+    const title = '未命名图表_01';
+    const snapshot: ChartProjectSnapshot = {
+      chartType: type,
+      chartTheme: 'default',
+      chartTitle: title,
+      chartData: sample.data,
+      chartOptions: options,
+    };
+
     setChartType(type);
     setChartData(sample.data);
     setChartTheme('default');
-    setChartOptions(createDefaultOptions(type, sample));
+    setChartOptions(options);
+    setChartTitle(title);
+    setProjectName(title);
+    setCurrentProjectId(null);
+    markCleanSnapshot(snapshot);
+  };
+
+  const runPendingAction = (action: PendingAction | null) => {
+    if (!action) return;
+    if (action.type === 'chart') {
+      switchToNewChart(action.chartType);
+      return;
+    }
+
+    window.location.href = '/projects';
+  };
+
+  const requestActionWithUnsavedCheck = (action: PendingAction) => {
+    if (hasUnsavedChanges) {
+      setPendingAction(action);
+      setIsUnsavedDialogOpen(true);
+      return;
+    }
+
+    runPendingAction(action);
+  };
+
+  useEffect(() => {
+    const projectId = new URLSearchParams(window.location.search).get('projectId');
+
+    if (projectId) {
+      const project = getLocalProject(projectId);
+      if (project) {
+        const snapshot = snapshotFromProject(project);
+        setChartType(project.chartType);
+        setChartTheme(project.chartTheme);
+        setChartTitle(project.chartTitle || project.name);
+        setChartData(project.chartData);
+        setChartOptions(project.chartOptions);
+        setCurrentProjectId(project.id);
+        setProjectName(project.name);
+        setSaveName(project.name);
+        markCleanSnapshot(snapshot);
+        showToast('已打开项目');
+        return;
+      }
+
+      showToast('没有找到这个项目');
+    }
+
+    const sample = createSampleChart('bar', createSampleSeed());
+    const options = createDefaultOptions('bar', sample);
+    const title = '未命名图表_01';
+    const snapshot: ChartProjectSnapshot = {
+      chartType: 'bar',
+      chartTheme: 'default',
+      chartTitle: title,
+      chartData: sample.data,
+      chartOptions: options,
+    };
+
+    setChartData(sample.data);
+    setChartOptions(options);
+    setProjectName(title);
+    setSaveName(title);
+    markCleanSnapshot(snapshot);
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const openSaveDialog = () => {
+    setSaveError(null);
+    setSaveName(projectName || chartTitle || '未命名项目');
+    setIsSaveDialogOpen(true);
+  };
+
+  const saveCurrentProject = () => {
+    const normalizedName = saveName.trim() || chartTitle.trim() || '未命名项目';
+    const normalizedTitle = chartTitle.trim() || normalizedName;
+    const snapshot: ChartProjectSnapshot = {
+      ...currentSnapshot,
+      chartTitle: normalizedTitle,
+    };
+
+    try {
+      const savedProject = saveLocalProject(snapshot, normalizedName, currentProjectId);
+      setCurrentProjectId(savedProject.id);
+      setProjectName(savedProject.name);
+      setChartTitle(savedProject.chartTitle);
+      setSaveName(savedProject.name);
+      markCleanSnapshot(snapshotFromProject(savedProject));
+      setIsSaveDialogOpen(false);
+      setSaveError(null);
+      showToast('项目已保存');
+      runPendingAction(pendingAction);
+      setPendingAction(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '保存失败，存储空间可能不足。');
+    }
+  };
+
+  const handleChartSelect = (type: ChartType) => {
+    if (type === chartType) return;
+    requestActionWithUnsavedCheck({ type: 'chart', chartType: type });
+  };
+
+  const handleOpenProjects = () => {
+    requestActionWithUnsavedCheck({ type: 'projects' });
   };
 
   const handleDownloadImage = () => {
@@ -225,7 +496,7 @@ export function EasyChartApp() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-surface-container-low text-on-surface">
-      <TopNavBar onToggleAiDrawer={() => toggleDrawer('ai')} />
+      <TopNavBar onToggleAiDrawer={() => toggleDrawer('ai')} onOpenProjects={handleOpenProjects} />
       
       <div className="flex flex-1 overflow-hidden relative p-sm pt-0 gap-sm">
         <Sidebar 
@@ -265,6 +536,14 @@ export function EasyChartApp() {
                   </div>
                 )}
               </div>
+              <span className={cn(
+                "text-[11px] font-label-md px-xs py-1 rounded border",
+                hasUnsavedChanges
+                  ? "text-on-error-container bg-error-container border-error/30"
+                  : "text-on-surface-variant bg-surface-container-low border-outline-variant/30"
+              )}>
+                {hasUnsavedChanges ? '未保存' : currentProjectId ? '已保存' : '草稿'}
+              </span>
             </div>
 
             {/* Right: Actions */}
@@ -272,7 +551,7 @@ export function EasyChartApp() {
               <div className="flex items-center gap-xs">
                 <button 
                   className="flex items-center gap-xs px-md py-sm hover:bg-surface-variant text-on-surface rounded-md transition-colors font-label-md text-label-md cursor-pointer"
-                  onClick={() => showToast('项目保存成功！')}
+                  onClick={openSaveDialog}
                 >
                   <Save className="w-[16px] h-[16px]" />
                   保存项目
@@ -404,10 +683,49 @@ export function EasyChartApp() {
           showToast('已切换图表模板！');
         }}
       />
+
+      <UnsavedChangesDialog
+        isOpen={isUnsavedDialogOpen}
+        onCancel={() => {
+          setIsUnsavedDialogOpen(false);
+          setPendingAction(null);
+        }}
+        onDiscard={() => {
+          const action = pendingAction;
+          setIsUnsavedDialogOpen(false);
+          setPendingAction(null);
+          runPendingAction(action);
+        }}
+        onSave={() => {
+          setIsUnsavedDialogOpen(false);
+          openSaveDialog();
+        }}
+      />
+
+      <SaveProjectDialog
+        isOpen={isSaveDialogOpen}
+        name={saveName}
+        error={saveError}
+        onNameChange={setSaveName}
+        onCancel={() => {
+          setIsSaveDialogOpen(false);
+          setSaveError(null);
+          if (pendingAction) {
+            setPendingAction(null);
+          }
+        }}
+        onConfirm={saveCurrentProject}
+      />
       
       {toastMessage && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-surface-container-highest text-on-surface px-lg py-sm rounded-full shadow-lg font-label-md animate-in fade-in slide-in-from-top-4">
-          {toastMessage}
+        <div className="fixed top-20 right-6 z-[140] w-[min(360px,calc(100vw-32px))] rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-md py-sm shadow-2xl animate-in fade-in slide-in-from-top-3">
+          <div className="flex items-start gap-sm">
+            <div className="mt-[6px] h-2.5 w-2.5 shrink-0 rounded-full bg-primary shadow-[0_0_0_4px_rgba(0,74,198,0.12)]" />
+            <div className="min-w-0">
+              <div className="text-label-md font-label-md font-semibold text-on-surface">提示</div>
+              <div className="mt-xs text-body-md font-body-md text-on-surface-variant">{toastMessage}</div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -4,9 +4,10 @@ import { Sparkles, BarChart3 } from 'lucide-react';
 
 interface TopNavBarProps {
   onToggleAiDrawer: () => void;
+  onOpenProjects?: () => void;
 }
 
-export function TopNavBar({ onToggleAiDrawer }: TopNavBarProps) {
+export function TopNavBar({ onToggleAiDrawer, onOpenProjects }: TopNavBarProps) {
   return (
     <nav className="relative w-full z-50 flex justify-between items-center px-lg h-16 bg-transparent flex-shrink-0">
       <div className="flex items-center gap-sm">
@@ -23,9 +24,12 @@ export function TopNavBar({ onToggleAiDrawer }: TopNavBarProps) {
             <Sparkles className="w-[18px] h-[18px]" />
             智能助手
           </button>
-          <button className="font-label-md text-label-md bg-primary hover:bg-primary-container text-on-primary px-md py-sm rounded-md transition-colors flex items-center gap-xs">
+          <button
+            className="font-label-md text-label-md bg-primary hover:bg-primary-container text-white px-md py-sm rounded-md transition-colors flex items-center gap-xs"
+            onClick={onOpenProjects}
+          >
             <BarChart3 className="w-[18px] h-[18px]" />
-            我的图表
+            我的项目
           </button>
         </div>
         
