@@ -2,13 +2,13 @@
 
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2 } from 'lucide-react';
+import { X, UploadCloud, PlusSquare, Columns, Trash2, ChevronLeft, Minimize2, Palette, RotateCcw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
 import { DEFAULT_FUNCTION_PLOT, normalizeFunctionPlot } from '@/lib/function-plot';
 import { parseImportFile, type ImportedTable } from '@/lib/import-data';
 import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT } from '@/lib/scatter-clustering';
-import { ChartData, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
+import { ChartData, ChartDataPointStyle, ChartFunctionPlot, ChartMarker, ChartMarkerType, ChartSeriesRole, ChartSubType, ChartType } from '@/types';
 import { DataImportModal } from './DataImportModal';
 
 interface DataDrawerProps {
@@ -43,8 +43,19 @@ const MARKER_TYPE_OPTIONS: { value: ChartMarkerType; label: string }[] = [
 type SeriesStyleKey = 'color' | 'areaColor' | 'areaGradientStart' | 'areaGradientEnd';
 type SeriesNumericStyleKey = 'barWidth' | 'lineWidth';
 type ScatterColorStyleKey = 'clusterColors' | 'singleAxisColors';
+type DataPointStyleKey = keyof ChartDataPointStyle;
 
 const FALLBACK_SERIES_COLORS = ['#2563eb', '#ef4444', '#60a5fa', '#a78bfa', '#22c55e', '#f59e0b'];
+const BAR_POINT_STYLE_UNSUPPORTED_SUBTYPES: ChartSubType[] = [
+  'waterfall',
+  'negative-staggered',
+  'negative-bar',
+  'broken-axis',
+  'rounded-stacked',
+  'stacked',
+  'stacked-horizontal',
+  'polar-label',
+];
 
 function getSecondaryCategoryFallback(category: string, index: number) {
   return `${category}-对比${index + 1}`;
@@ -56,6 +67,23 @@ function getFallbackSeriesColor(index: number) {
 
 function getColorInputValue(value: string | undefined, fallback: string) {
   return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+}
+
+function hasDataPointStyle(style: ChartDataPointStyle | undefined) {
+  return Boolean(style?.color || style?.barWidth);
+}
+
+function shiftDataPointStylesOnRemove(styles: Record<number, ChartDataPointStyle> | undefined, removeIndex: number) {
+  if (!styles) return undefined;
+
+  const nextStyles: Record<number, ChartDataPointStyle> = {};
+  Object.entries(styles).forEach(([rawIndex, style]) => {
+    const index = Number(rawIndex);
+    if (!Number.isInteger(index) || index === removeIndex || !hasDataPointStyle(style)) return;
+    nextStyles[index > removeIndex ? index - 1 : index] = style;
+  });
+
+  return Object.keys(nextStyles).length ? nextStyles : undefined;
 }
 
 export function DataDrawer({
@@ -77,6 +105,7 @@ export function DataDrawer({
   const [importFileName, setImportFileName] = useState('');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [activeBarPointStyle, setActiveBarPointStyle] = useState<{ seriesIndex: number; categoryIndex: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isFunctionPlot = chartType === 'line' && subType === 'function-plot';
   const showSecondaryXAxis = chartType === 'line' && subType === 'multi-x';
@@ -84,6 +113,8 @@ export function DataDrawer({
   const supportsMarkers = (chartType === 'bar' || chartType === 'line') && !isFunctionPlot;
   const supportsLineSeriesStyle = chartType === 'line' && !isFunctionPlot;
   const supportsBarSeriesStyle = chartType === 'bar' && !isFunctionPlot;
+  const supportsBarPointStyle = supportsBarSeriesStyle && (!subType || !BAR_POINT_STYLE_UNSUPPORTED_SUBTYPES.includes(subType));
+  const barPointStyleEnabled = supportsBarPointStyle && data.barItemStyle?.enabled === true;
   const supportsSeriesStyle = supportsLineSeriesStyle || supportsBarSeriesStyle;
   const isScatter = chartType === 'scatter';
   const supportsBasicScatterStyle = isScatter && subType !== 'clustered' && subType !== 'single-axis';
@@ -178,6 +209,66 @@ export function DataDrawer({
     onChange({ ...data, series: newSeries });
   };
 
+  const updateBarPointStyleEnabled = (enabled: boolean) => {
+    if (!enabled) {
+      setActiveBarPointStyle(null);
+    }
+
+    onChange({
+      ...data,
+      barItemStyle: {
+        ...data.barItemStyle,
+        enabled,
+      },
+    });
+  };
+
+  const updateDataPointStyle = (
+    sIdx: number,
+    cIdx: number,
+    key: DataPointStyleKey,
+    value: string | number
+  ) => {
+    const newSeries = [...data.series];
+    const series = newSeries[sIdx];
+    if (!series) return;
+
+    const pointStyles = { ...(series.dataPointStyles || {}) };
+    const currentStyle = { ...(pointStyles[cIdx] || {}) };
+    if (key === 'color') {
+      currentStyle.color = String(value).trim() || undefined;
+    } else {
+      const numericValue = Number(value);
+      currentStyle.barWidth = Number.isFinite(numericValue) && numericValue > 0 ? numericValue : undefined;
+    }
+
+    if (hasDataPointStyle(currentStyle)) {
+      pointStyles[cIdx] = currentStyle;
+    } else {
+      delete pointStyles[cIdx];
+    }
+
+    newSeries[sIdx] = {
+      ...series,
+      dataPointStyles: Object.keys(pointStyles).length ? pointStyles : undefined,
+    };
+    onChange({ ...data, series: newSeries });
+  };
+
+  const resetDataPointStyle = (sIdx: number, cIdx: number) => {
+    const newSeries = [...data.series];
+    const series = newSeries[sIdx];
+    if (!series?.dataPointStyles) return;
+
+    const pointStyles = { ...series.dataPointStyles };
+    delete pointStyles[cIdx];
+    newSeries[sIdx] = {
+      ...series,
+      dataPointStyles: Object.keys(pointStyles).length ? pointStyles : undefined,
+    };
+    onChange({ ...data, series: newSeries });
+  };
+
   const updateScatterColorStyle = (key: ScatterColorStyleKey, index: number, value: string) => {
     const colors = [...(data.scatterStyle?.[key] || [])];
     colors[index] = value.trim();
@@ -238,6 +329,12 @@ export function DataDrawer({
 
   const removeColumn = (sIdx: number) => {
     if (data.series.length <= 1) return;
+    setActiveBarPointStyle((current) => {
+      if (!current) return current;
+      if (current.seriesIndex === sIdx) return null;
+      if (current.seriesIndex > sIdx) return { ...current, seriesIndex: current.seriesIndex - 1 };
+      return current;
+    });
     onChange({
       ...data,
       series: data.series.filter((_, idx) => idx !== sIdx)
@@ -246,13 +343,20 @@ export function DataDrawer({
 
   const removeRow = (cIdx: number) => {
     if (data.categories.length <= 1) return;
+    setActiveBarPointStyle((current) => {
+      if (!current) return current;
+      if (current.categoryIndex === cIdx) return null;
+      if (current.categoryIndex > cIdx) return { ...current, categoryIndex: current.categoryIndex - 1 };
+      return current;
+    });
     onChange({
       ...data,
       categories: data.categories.filter((_, idx) => idx !== cIdx),
       secondaryCategories: data.secondaryCategories?.filter((_, idx) => idx !== cIdx),
       series: data.series.map(s => ({
         ...s,
-        data: s.data.filter((_, idx) => idx !== cIdx)
+        data: s.data.filter((_, idx) => idx !== cIdx),
+        dataPointStyles: shiftDataPointStylesOnRemove(s.dataPointStyles, cIdx)
       }))
     });
   };
@@ -458,8 +562,19 @@ export function DataDrawer({
         {/* Data Grid Preview */}
         {!isFunctionPlot && (
         <div className="flex flex-col gap-sm">
-          <div className="flex justify-between items-end">
-            <h4 className="font-label-md text-label-md text-on-surface font-semibold">数据编辑</h4>
+          <div className="flex flex-wrap justify-between items-end gap-sm">
+            <div className="flex flex-col gap-xs">
+              <h4 className="font-label-md text-label-md text-on-surface font-semibold">数据编辑</h4>
+              {supportsBarPointStyle && (
+                <label className="flex items-center gap-sm text-body-sm text-on-surface-variant">
+                  <Switch
+                    checked={barPointStyleEnabled}
+                    onCheckedChange={updateBarPointStyleEnabled}
+                  />
+                  <span>启用单柱样式</span>
+                </label>
+              )}
+            </div>
             <div className="flex gap-sm">
               <button onClick={addRow} className="flex items-center gap-xs px-sm py-xs bg-surface-container-high hover:bg-surface-variant text-on-surface rounded-md text-label-md font-label-md transition-colors shadow-sm cursor-pointer">
                 <PlusSquare className="w-4 h-4" />
@@ -545,21 +660,112 @@ export function DataDrawer({
                         />
                       </td>
                     )}
-                    {data.series.map((s, sIdx) => (
-                      <td key={sIdx} className="py-xs px-xs border-r border-outline-variant/30">
-                        <input
-                          className="w-full bg-transparent p-1 outline-none focus:ring-1 focus:ring-primary rounded hover:bg-surface-variant text-on-surface numbers font-code-sm"
-                          type="number"
-                          value={s.data[cIdx] ?? 0}
-                          onChange={(e) => updateDataPoint(sIdx, cIdx, e.target.value)}
-                        />
-                      </td>
-                    ))}
+                    {data.series.map((s, sIdx) => {
+                      const pointStyle = s.dataPointStyles?.[cIdx];
+                      const hasPointOverride = hasDataPointStyle(pointStyle);
+                      const isActivePoint = activeBarPointStyle?.seriesIndex === sIdx && activeBarPointStyle.categoryIndex === cIdx;
+
+                      return (
+                        <td key={sIdx} className="py-xs px-xs border-r border-outline-variant/30">
+                          <div className="flex items-center gap-xs">
+                            <input
+                              className="min-w-[72px] flex-1 bg-transparent p-1 outline-none focus:ring-1 focus:ring-primary rounded hover:bg-surface-variant text-on-surface numbers font-code-sm"
+                              type="number"
+                              value={s.data[cIdx] ?? 0}
+                              onChange={(e) => updateDataPoint(sIdx, cIdx, e.target.value)}
+                            />
+                            {barPointStyleEnabled && (
+                              <button
+                                className={cn(
+                                  "h-8 w-8 shrink-0 rounded-md border border-outline-variant/40 flex items-center justify-center transition-colors cursor-pointer",
+                                  isActivePoint
+                                    ? "bg-primary-container text-white border-primary-container"
+                                    : hasPointOverride
+                                      ? "bg-primary-fixed text-on-primary-fixed border-primary/40"
+                                      : "bg-surface text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+                                )}
+                                title={`${s.name} / ${cat} 单柱样式`}
+                                onClick={() => setActiveBarPointStyle(isActivePoint ? null : { seriesIndex: sIdx, categoryIndex: cIdx })}
+                              >
+                                {pointStyle?.color ? (
+                                  <span className="h-3.5 w-3.5 rounded-full border border-outline-variant/50" style={{ backgroundColor: pointStyle.color }} />
+                                ) : (
+                                  <Palette className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {barPointStyleEnabled && activeBarPointStyle && (() => {
+            const series = data.series[activeBarPointStyle.seriesIndex];
+            const category = data.categories[activeBarPointStyle.categoryIndex];
+            if (!series || category == null) return null;
+
+            const pointStyle = series.dataPointStyles?.[activeBarPointStyle.categoryIndex];
+            const fallbackColor = series.color || getFallbackSeriesColor(activeBarPointStyle.seriesIndex);
+            const barWidth = pointStyle?.barWidth ?? defaultBarWidth;
+
+            return (
+              <div className="rounded-md border border-outline-variant/40 bg-surface-container-lowest shadow-sm overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-sm px-md py-sm border-b border-outline-variant/30 bg-surface-container-low">
+                  <div className="min-w-0">
+                    <div className="text-label-md font-label-md text-on-surface font-semibold">单柱样式</div>
+                    <div className="mt-xs text-body-sm text-on-surface-variant truncate">
+                      {series.name} / {category}
+                    </div>
+                  </div>
+                  <button
+                    className="flex items-center gap-xs px-sm py-xs rounded-md border border-outline-variant/40 bg-surface hover:bg-surface-variant text-on-surface-variant hover:text-on-surface text-label-md font-label-md transition-colors cursor-pointer"
+                    onClick={() => resetDataPointStyle(activeBarPointStyle.seriesIndex, activeBarPointStyle.categoryIndex)}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    重置
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-md p-md">
+                  <div>
+                    <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">柱体颜色</label>
+                    <div className="flex items-center gap-xs">
+                      <input
+                        className="h-9 w-10 rounded border border-outline-variant/50 bg-transparent cursor-pointer"
+                        type="color"
+                        value={getColorInputValue(pointStyle?.color, fallbackColor)}
+                        onChange={(event) => updateDataPointStyle(activeBarPointStyle.seriesIndex, activeBarPointStyle.categoryIndex, 'color', event.target.value)}
+                      />
+                      <input
+                        className="min-w-0 flex-1 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm uppercase outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        value={pointStyle?.color || ''}
+                        onChange={(event) => updateDataPointStyle(activeBarPointStyle.seriesIndex, activeBarPointStyle.categoryIndex, 'color', event.target.value)}
+                        placeholder="跟随系列"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-label-md font-label-md text-on-surface mb-sm font-medium">柱体宽度</label>
+                    <div className="flex items-center gap-xs">
+                      <input
+                        className="w-28 h-9 px-xs border border-outline-variant/50 rounded-md bg-surface text-body-sm font-code-sm outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        type="number"
+                        min={5}
+                        max={100}
+                        step={5}
+                        value={barWidth}
+                        onChange={(event) => updateDataPointStyle(activeBarPointStyle.seriesIndex, activeBarPointStyle.categoryIndex, 'barWidth', Number(event.target.value))}
+                      />
+                      <span className="text-body-sm text-on-surface-variant">%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
         )}
 

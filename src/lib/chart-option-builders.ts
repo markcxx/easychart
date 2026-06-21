@@ -1,6 +1,6 @@
 import * as echarts from 'echarts/core';
 import type { EChartsCoreOption } from 'echarts/core';
-import type { ChartData, ChartOptions, ChartSeries, ChartSubType, ChartType, ScatterPoint } from '@/types';
+import type { ChartData, ChartDataPointStyle, ChartOptions, ChartSeries, ChartSubType, ChartType, ScatterPoint } from '@/types';
 import { generateFunctionPlotData, normalizeFunctionPlot } from '@/lib/function-plot';
 import { SCATTER_CLUSTER_COLORS, SCATTER_CLUSTER_COUNT, SCATTER_CLUSTER_DIMENSION_INDEX } from '@/lib/scatter-clustering';
 
@@ -128,6 +128,70 @@ function hasCustomSeriesStyle(series: ChartSeries | undefined) {
 
 function getSeriesBarWidth(options: ChartOptions, series: ChartSeries | undefined) {
   return `${hasCustomSeriesStyle(series) ? series?.barWidth ?? options.barWidth : options.barWidth}%`;
+}
+
+function hasCustomBarPointStyle(data: ChartData, series: ChartSeries | undefined, dataIndex: number) {
+  if (data.barItemStyle?.enabled !== true) return false;
+  const style = series?.dataPointStyles?.[dataIndex];
+  return Boolean(style?.color || style?.barWidth);
+}
+
+function getCustomBarPointStyle(data: ChartData, series: ChartSeries | undefined, dataIndex: number): ChartDataPointStyle | undefined {
+  return hasCustomBarPointStyle(data, series, dataIndex)
+    ? series?.dataPointStyles?.[dataIndex]
+    : undefined;
+}
+
+function buildBarDataItems(data: ChartData, series: ChartSeries, values: number[], hideWidthOverrides = false): SeriesDataItem[] {
+  return values.map((value, dataIndex) => {
+    const style = getCustomBarPointStyle(data, series, dataIndex);
+    if (!style) return value;
+    if (hideWidthOverrides && style.barWidth) return '-';
+    if (!style.color) return value;
+
+    return {
+      value,
+      itemStyle: {
+        color: style.color,
+      },
+    };
+  });
+}
+
+function buildBarWidthOverrideSeries(
+  data: ChartData,
+  options: ChartOptions,
+  series: ChartSeries,
+  values: number[],
+  baseSeries: SeriesOption
+): SeriesOption[] {
+  if (data.barItemStyle?.enabled !== true) return [];
+
+  return values.flatMap((value, dataIndex) => {
+    const style = getCustomBarPointStyle(data, series, dataIndex);
+    if (!style?.barWidth) return [];
+
+    const overrideData = values.map((_, index): SeriesDataItem => {
+      if (index !== dataIndex) return '-';
+      if (!style.color) return value;
+
+      return {
+        value,
+        itemStyle: {
+          color: style.color,
+        },
+      };
+    });
+
+    return [{
+      ...baseSeries,
+      data: overrideData,
+      barWidth: `${style.barWidth}%`,
+      barGap: '-100%',
+      markLine: undefined,
+      markPoint: undefined,
+    }];
+  });
 }
 
 function getSeriesLineWidth(options: ChartOptions, series: ChartSeries | undefined) {
@@ -1292,7 +1356,7 @@ function buildDefaultSeries(data: ChartData, options: ChartOptions, chartType: C
     return buildPieSeries(data, options);
   }
 
-  return data.series.map((series, seriesIndex) => {
+  return data.series.flatMap((series, seriesIndex) => {
     const isBar = chartType === 'bar';
     const isLine = chartType === 'line';
     const isPolar = options.subType === 'polar-label' && isBar;
@@ -1333,11 +1397,14 @@ function buildDefaultSeries(data: ChartData, options: ChartOptions, chartType: C
       ? 'total'
       : undefined;
 
-    return {
+    const seriesData = isBar
+      ? buildBarDataItems(data, series, values, true)
+      : values;
+    const baseSeries: SeriesOption = {
       name: series.name,
       type: chartType,
       coordinateSystem: isPolar ? 'polar' : 'cartesian2d',
-      data: values,
+      data: seriesData,
       barWidth: isBar ? getSeriesBarWidth(options, series) : undefined,
       symbol: isLine ? options.lineSymbol : undefined,
       showSymbol: isLine ? options.lineSymbol !== 'none' : undefined,
@@ -1354,6 +1421,10 @@ function buildDefaultSeries(data: ChartData, options: ChartOptions, chartType: C
       },
       ...(isBar || isLine ? getSeriesMarkers(data, options, seriesIndex, data.categories, values, isHorizontal) : {}),
     };
+
+    return isBar
+      ? [baseSeries, ...buildBarWidthOverrideSeries(data, options, series, values, baseSeries)]
+      : [baseSeries];
   });
 }
 

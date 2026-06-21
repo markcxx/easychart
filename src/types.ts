@@ -13,6 +13,12 @@ export interface ChartSeries {
   areaColor?: string;
   areaGradientStart?: string;
   areaGradientEnd?: string;
+  dataPointStyles?: Record<number, ChartDataPointStyle>;
+}
+
+export interface ChartDataPointStyle {
+  color?: string;
+  barWidth?: number;
 }
 
 export interface ChartMarker {
@@ -51,6 +57,9 @@ export interface ChartData {
   categories: string[];
   secondaryCategories?: string[];
   series: ChartSeries[];
+  barItemStyle?: {
+    enabled?: boolean;
+  };
   markLines?: ChartMarker[];
   markPoints?: ChartMarker[];
   functionPlot?: ChartFunctionPlot;
